@@ -7,6 +7,7 @@ import net.minecraft.entity.player.PlayerEntity;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.lwjgl.glfw.GLFW;
 
 import static nova.visuals.Module.Category.*;
 
@@ -16,6 +17,7 @@ public final class Modules {
     // ---------- RENDER ----------
     public static final Module LOW_END        = add(new Module("LowEnd", RENDER, true));
     public static final Module PLAYER_ESP     = add(new Module("PlayerESP", RENDER, true));
+    public static final Module MOB_ESP        = add(new Module("MobESP", RENDER, false));
     public static final Module PROJECTILE_ESP = add(new Module("ProjectileESP", RENDER, false));
     public static final Module ITEM_ESP       = add(new Module("ItemESP", RENDER, false));
     public static final Module STORAGE_ESP    = add(new Module("StorageESP", RENDER, false));
@@ -59,6 +61,7 @@ public final class Modules {
 
     // ---------- PVP (visual helpers) ----------
     public static final Module TRAJECTORIES = add(new Module("Trajectories", PVP, true));
+    public static final Module TARGET_INDICATOR = add(new Module("TargetIndicator", PVP, true));
 
     public static final Module NO_HURT_CAM = add(new Module("NoHurtCam", PVP, false) {
         @Override public void onTick(MinecraftClient mc) {
@@ -72,7 +75,7 @@ public final class Modules {
         private double prevSens;
 
         @Override public void onTick(MinecraftClient mc) {
-            boolean want = NovaClient.zoomKey != null && NovaClient.zoomKey.isPressed() && mc.currentScreen == null;
+            boolean want = NovaClient.isKeyDown(keyCode) && mc.currentScreen == null;
             if (want && !zooming) {
                 prevFov = mc.options.getFov().getValue();
                 prevSens = mc.options.getMouseSensitivity().getValue();
@@ -115,6 +118,8 @@ public final class Modules {
             mc.world.setThunderGradient(0f);
         }
     });
+
+    static { ZOOM.keyCode = GLFW.GLFW_KEY_C; }
 
     private static Module.Category HUD_CAT() { return Module.Category.HUD; }
     private static Module add(Module m) { ALL.add(m); return m; }
