@@ -19,11 +19,21 @@ public final class Config {
             String v = p.getProperty(m.name);
             if (v != null) m.enabled = Boolean.parseBoolean(v);
         }
+        for (Widget w : Widgets.ALL) {
+            String v = p.getProperty("pos." + w.id);
+            if (v == null) continue;
+            try {
+                String[] a = v.split(",");
+                w.rx = Float.parseFloat(a[0]);
+                w.ry = Float.parseFloat(a[1]);
+            } catch (Exception ignored) {}
+        }
     }
 
     public static void save() {
         Properties p = new Properties();
         for (Module m : Modules.ALL) p.setProperty(m.name, String.valueOf(m.enabled));
+        for (Widget w : Widgets.ALL) p.setProperty("pos." + w.id, w.rx + "," + w.ry);
         try (var out = Files.newOutputStream(FILE)) { p.store(out, "Nova Visuals"); } catch (IOException ignored) {}
     }
 
