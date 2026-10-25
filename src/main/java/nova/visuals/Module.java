@@ -19,6 +19,7 @@ public class Module {
         enabled = !enabled;
         if (enabled) onEnable(); else onDisable();
         Config.save();
+        Hud.invalidate();
     }
 
     public void onEnable() {}
