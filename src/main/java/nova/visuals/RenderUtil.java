@@ -15,7 +15,7 @@ public final class RenderUtil {
         return MathHelper.hsvToRgb(h, sat, 1f) | 0xFF000000;
     }
 
-    private static int mix(int a, int b, double t) {
+    public static int mix(int a, int b, double t) {
         int ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
         int br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
         return 0xFF000000 | ((int) (ar + (br - ar) * t) << 16) | ((int) (ag + (bg - ag) * t) << 8) | (int) (ab + (bb - ab) * t);
