@@ -8,6 +8,8 @@ public class Module {
     public final String name;
     public final Category category;
     public boolean enabled;
+    /** GLFW key code; -1 means unbound. */
+    public int keyCode = -1;
 
     public Module(String name, Category category, boolean enabled) {
         this.name = name;
