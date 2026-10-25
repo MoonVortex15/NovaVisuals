@@ -18,7 +18,7 @@ public class NovaClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        Config.load();
+        try { Config.load(); } catch (Throwable ignored) {}
 
         openGui = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "Nova GUI", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, "Nova"));
@@ -26,24 +26,32 @@ public class NovaClient implements ClientModInitializer {
                 "Zoom", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_C, "Nova"));
 
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
-            while (openGui.wasPressed()) mc.setScreen(new ModuleScreen());
-            for (Module m : Modules.ALL) if (m.enabled) m.onTick(mc);
+            try {
+                while (openGui.wasPressed()) mc.setScreen(new ModuleScreen());
+            } catch (Throwable ignored) {}
+
+            for (Module m : Modules.ALL) {
+                if (!m.enabled) continue;
+                try { m.onTick(mc); } catch (Throwable t) { Safe.fail(m, t); }
+            }
 
             if (mc.player != null) {
                 float hp = mc.player.getHealth();
-                if (hp < State.lastHealth) State.combo = 0;      // нас ударили — комбо сброшено
+                if (hp < State.lastHealth) State.combo = 0;
                 State.lastHealth = hp;
                 if (System.currentTimeMillis() - State.lastHit > 3000) State.combo = 0;
             }
         });
 
         AttackEntityCallback.EVENT.register((player, world, hand, entity, hit) -> {
-            if (world.isClient && entity instanceof LivingEntity le) {
-                State.target = le;
-                State.targetTime = System.currentTimeMillis();
-                State.lastHit = State.targetTime;
-                State.combo++;
-            }
+            try {
+                if (world.isClient && entity instanceof LivingEntity le) {
+                    State.target = le;
+                    State.targetTime = System.currentTimeMillis();
+                    State.lastHit = State.targetTime;
+                    State.combo++;
+                }
+            } catch (Throwable ignored) {}
             return ActionResult.PASS;
         });
 
