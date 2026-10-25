@@ -160,7 +160,7 @@ public class ModuleScreen extends Screen {
         }
 
         // подвал
-        ctx.drawText(textRenderer, "Open chat to move HUD widgets", px + 26, py + ph - 17, 0xFF4A4A5E, false);
+        ctx.drawText(textRenderer, "LMB toggle  •  RMB settings  •  Chat moves HUD widgets", px + 26, py + ph - 17, 0xFF4A4A5E, false);
         String foot = Brand.NAME + " " + Brand.SUBTITLE + " " + Brand.VERSION;
         ctx.drawText(textRenderer, foot, px + pw - 26 - textRenderer.getWidth(foot), py + ph - 17, 0xFF6C6C86, false);
     }
@@ -181,15 +181,18 @@ public class ModuleScreen extends Screen {
             boolean inSearch = mx >= sx && mx <= sx + sw && my >= sy && my <= sy + 18;
             searchFocus = inSearch;
             if (inSearch) return true;
-
-            if (my >= areaY && my <= areaY + areaH) {
-                List<Module> list = visible();
-                for (int i = 0; i < list.size(); i++) {
-                    int cx = cardX(i), cy = cardY(i);
-                    if (mx >= cx && mx <= cx + colW && my >= cy && my <= cy + CARD_H) {
+        }
+        if ((button == 0 || button == 1) && my >= areaY && my <= areaY + areaH) {
+            List<Module> list = visible();
+            for (int i = 0; i < list.size(); i++) {
+                int cx = cardX(i), cy = cardY(i);
+                if (mx >= cx && mx <= cx + colW && my >= cy && my <= cy + CARD_H) {
+                    if (button == 1) {
+                        client.setScreen(new ModuleSettingsScreen(list.get(i), this));
+                    } else {
                         list.get(i).toggle();
-                        return true;
                     }
+                    return true;
                 }
             }
         }
