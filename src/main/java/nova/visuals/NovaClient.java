@@ -18,11 +18,22 @@ import org.lwjgl.glfw.GLFW;
 
 public class NovaClient implements ClientModInitializer {
     public static KeyBinding openGui;
-    public static KeyBinding zoomKey;
+    private static final java.util.Map<Module, Boolean> KEY_WAS_DOWN = new java.util.HashMap<>();
 
     // перетаскивание виджетов в чате
     public static Widget dragging;
     private static double offX, offY;
+
+    public static boolean isKeyDown(int keyCode) {
+        if (keyCode < 0) return false;
+        var mc = net.minecraft.client.MinecraftClient.getInstance();
+        return mc.getWindow() != null && GLFW.glfwGetKey(mc.getWindow().getHandle(), keyCode) == GLFW.GLFW_PRESS;
+    }
+
+    public static String keyName(int keyCode) {
+        if (keyCode < 0) return "Unbound";
+        return InputUtil.fromKeyCode(keyCode, 0).getLocalizedText().getString();
+    }
 
     @Override
     public void onInitializeClient() {
@@ -30,13 +41,24 @@ public class NovaClient implements ClientModInitializer {
 
         openGui = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "Nova GUI", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, "Nova"));
-        zoomKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "Zoom", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_C, "Nova"));
 
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
             try {
-                while (openGui.wasPressed()) mc.setScreen(new ModuleScreen());
+                if (mc.currentScreen == null) while (openGui.wasPressed()) mc.setScreen(new ModuleScreen());
+                else while (openGui.wasPressed()) { /* consume key presses while a screen is open */ }
             } catch (Throwable ignored) {}
+
+            if (mc.currentScreen == null && mc.getWindow() != null) {
+                for (Module m : Modules.ALL) {
+                    if (m.keyCode < 0 || m == Modules.ZOOM) continue;
+                    boolean down = isKeyDown(m.keyCode);
+                    boolean was = KEY_WAS_DOWN.getOrDefault(m, false);
+                    if (down && !was) m.toggle();
+                    KEY_WAS_DOWN.put(m, down);
+                }
+            } else {
+                KEY_WAS_DOWN.replaceAll((m, down) -> false);
+            }
 
             for (Module m : Modules.ALL) {
                 if (!m.enabled) continue;
