@@ -14,6 +14,7 @@ public final class Modules {
     public static final List<Module> ALL = new ArrayList<>();
 
     // ---------- RENDER ----------
+    public static final Module LOW_END        = add(new Module("LowEnd", RENDER, true));
     public static final Module PLAYER_ESP     = add(new Module("PlayerESP", RENDER, true));
     public static final Module PROJECTILE_ESP = add(new Module("ProjectileESP", RENDER, false));
     public static final Module ITEM_ESP       = add(new Module("ItemESP", RENDER, false));
@@ -94,8 +95,8 @@ public final class Modules {
     public static final Module ARMOR_HUD   = add(new Module("ArmorHUD", HUD_CAT(), true));
     public static final Module POTION_HUD  = add(new Module("PotionHUD", HUD_CAT(), true));
     public static final Module TARGET_HUD  = add(new Module("TargetHUD", HUD_CAT(), true));
-    public static final Module KEYSTROKES  = add(new Module("Keystrokes", HUD_CAT(), true));
-    public static final Module ITEM_COUNT  = add(new Module("ItemCounter", HUD_CAT(), true));
+    public static final Module KEYSTROKES  = add(new Module("Keystrokes", HUD_CAT(), false));
+    public static final Module ITEM_COUNT  = add(new Module("ItemCounter", HUD_CAT(), false));
     public static final Module RADAR       = add(new Module("Radar", HUD_CAT(), false));
     public static final Module COMBO       = add(new Module("Combo", HUD_CAT(), true));
 

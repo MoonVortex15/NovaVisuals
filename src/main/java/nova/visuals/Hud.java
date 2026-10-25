@@ -25,6 +25,11 @@ public final class Hud {
     private static final ArrayDeque<Long> LCLICKS = new ArrayDeque<>();
     private static final ArrayDeque<Long> RCLICKS = new ArrayDeque<>();
     private static boolean prevL, prevR;
+    private static List<Module> activeCache;
+    private static long activeBuilt;
+    private static final int[] COUNTS = new int[4];
+    private static long countsAt;
+    private static ItemStack[] icons;
 
     public static void render(DrawContext ctx, RenderTickCounter tc) {
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -55,10 +60,15 @@ public final class Hud {
         ctx.fill(4, 4, 4 + w, 5, RenderUtil.rainbow(0, 0.7f));
         ctx.drawTextWithShadow(mc.textRenderer, wm, 8, 7, RenderUtil.rainbow(0, 0.5f));
 
-        List<Module> active = ALL.stream()
-                .filter(m -> m.enabled && m != HUD)
-                .sorted(Comparator.comparingInt((Module m) -> -mc.textRenderer.getWidth(m.name)))
-                .toList();
+        long nowMs = System.currentTimeMillis();
+        if (activeCache == null || nowMs - activeBuilt > 500) {
+            activeCache = ALL.stream()
+                    .filter(m -> m.enabled && m != HUD)
+                    .sorted(Comparator.comparingInt((Module m) -> -mc.textRenderer.getWidth(m.name)))
+                    .toList();
+            activeBuilt = nowMs;
+        }
+        List<Module> active = activeCache;
         int y = 4, idx = 0;
         for (Module m : active) {
             int tw = mc.textRenderer.getWidth(m.name);
@@ -189,11 +199,20 @@ public final class Hud {
 
     private static void itemCounter(DrawContext ctx, MinecraftClient mc, int sh) {
         Item[] items = {Items.TOTEM_OF_UNDYING, Items.END_CRYSTAL, Items.GOLDEN_APPLE, Items.ENDER_PEARL};
+        if (icons == null) {
+            icons = new ItemStack[items.length];
+            for (int i = 0; i < items.length; i++) icons[i] = new ItemStack(items[i]);
+        }
+        long n = System.currentTimeMillis();
+        if (n - countsAt > 500) {
+            for (int i = 0; i < items.length; i++) COUNTS[i] = count(mc.player.getInventory(), items[i]);
+            countsAt = n;
+        }
         int x = 4, y = sh / 2 + 10;
-        for (Item it : items) {
+        for (int i = 0; i < items.length; i++) {
             ctx.fill(x, y, x + 40, y + 18, 0x80000000);
-            ctx.drawItem(new ItemStack(it), x + 1, y + 1);
-            ctx.drawTextWithShadow(mc.textRenderer, "x" + count(mc.player.getInventory(), it), x + 20, y + 5, 0xFFFFFFFF);
+            ctx.drawItem(icons[i], x + 1, y + 1);
+            ctx.drawTextWithShadow(mc.textRenderer, "x" + COUNTS[i], x + 20, y + 5, 0xFFFFFFFF);
             y += 20;
         }
     }

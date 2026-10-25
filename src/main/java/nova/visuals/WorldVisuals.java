@@ -19,6 +19,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -33,6 +34,10 @@ import static nova.visuals.Modules.*;
 
 public final class WorldVisuals {
     private record Target(Box box, int fill, int outline) {}
+    private record Stored(BlockPos pos, int color) {}
+
+    private static final List<Stored> STORAGE_CACHE = new ArrayList<>();
+    private static long lastScan;
 
     public static void render(WorldRenderContext ctx) {
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -40,6 +45,10 @@ public final class WorldVisuals {
         boolean any = PLAYER_ESP.enabled || PROJECTILE_ESP.enabled || ITEM_ESP.enabled
                 || STORAGE_ESP.enabled || TRACERS.enabled || TRAJECTORIES.enabled;
         if (!any) return;
+
+        boolean low = LOW_END.enabled;
+        double range = low ? 40 : 96;
+        double rangeSq = range * range;
 
         MatrixStack ms = ctx.matrixStack();
         if (ms == null) return;
@@ -50,84 +59,112 @@ public final class WorldVisuals {
 
         List<Target> targets = new ArrayList<>();
         List<Target> tracers = new ArrayList<>();
+        boolean needEntities = PLAYER_ESP.enabled || PROJECTILE_ESP.enabled || ITEM_ESP.enabled || TRACERS.enabled;
         int i = 0;
 
-        for (Entity e : mc.world.getEntities()) {
-            if (e == mc.player) continue;
-            int color;
-            boolean player = false;
+        if (needEntities) {
+            for (Entity e : mc.world.getEntities()) {
+                if (e == mc.player) continue;
+                if (e.squaredDistanceTo(mc.player) > rangeSq) continue;
+                int color;
+                boolean player = false;
 
-            if (e instanceof PlayerEntity) {
-                if (!PLAYER_ESP.enabled && !TRACERS.enabled) continue;
-                player = true;
-                color = RenderUtil.rainbow(i * 25, 0.65f);
-                i++;
-            } else if (e instanceof ItemEntity) {
-                if (!ITEM_ESP.enabled) continue;
-                color = 0xFFFFD54A;
-            } else if (e instanceof EndCrystalEntity) {
-                if (!PROJECTILE_ESP.enabled) continue;
-                color = 0xFF40E0FF;
-            } else if (e instanceof ProjectileEntity) {
-                if (!PROJECTILE_ESP.enabled || e.getVelocity().lengthSquared() < 1.0E-4) continue;
-                color = 0xFFFF6A3D;
-            } else continue;
+                if (e instanceof PlayerEntity) {
+                    if (!PLAYER_ESP.enabled && !TRACERS.enabled) continue;
+                    player = true;
+                    color = RenderUtil.rainbow(i * 25, 0.65f);
+                    i++;
+                } else if (e instanceof ItemEntity) {
+                    if (!ITEM_ESP.enabled) continue;
+                    color = 0xFFFFD54A;
+                } else if (e instanceof EndCrystalEntity) {
+                    if (!PROJECTILE_ESP.enabled) continue;
+                    color = 0xFF40E0FF;
+                } else if (e instanceof ProjectileEntity) {
+                    if (!PROJECTILE_ESP.enabled || e.getVelocity().lengthSquared() < 1.0E-4) continue;
+                    color = 0xFFFF6A3D;
+                } else continue;
 
-            double x = MathHelper.lerp(td, e.prevX, e.getX());
-            double y = MathHelper.lerp(td, e.prevY, e.getY());
-            double z = MathHelper.lerp(td, e.prevZ, e.getZ());
-            Box b = e.getBoundingBox()
-                    .offset(x - e.getX() - cp.x, y - e.getY() - cp.y, z - e.getZ() - cp.z);
+                double x = MathHelper.lerp(td, e.prevX, e.getX());
+                double y = MathHelper.lerp(td, e.prevY, e.getY());
+                double z = MathHelper.lerp(td, e.prevZ, e.getZ());
+                Box b = e.getBoundingBox()
+                        .offset(x - e.getX() - cp.x, y - e.getY() - cp.y, z - e.getZ() - cp.z);
 
-            if (!player || PLAYER_ESP.enabled) {
-                targets.add(new Target(b, RenderUtil.alpha(color, 0x3C), color));
+                if (!player || PLAYER_ESP.enabled) {
+                    targets.add(new Target(b, low ? 0 : RenderUtil.alpha(color, 0x3C), color));
+                }
+                if (!low && player && PLAYER_ESP.enabled && e instanceof LivingEntity le) {
+                    float ratio = MathHelper.clamp((le.getHealth() + le.getAbsorptionAmount()) / le.getMaxHealth(), 0f, 1f);
+                    Box bg = new Box(b.minX - 0.14, b.minY, b.minZ - 0.14, b.minX - 0.08, b.maxY, b.minZ - 0.08);
+                    Box fg = new Box(bg.minX, bg.minY, bg.minZ, bg.maxX, bg.minY + (bg.maxY - bg.minY) * ratio, bg.maxZ);
+                    targets.add(new Target(bg, 0xB0000000, 0));
+                    targets.add(new Target(fg, MathHelper.hsvToRgb(ratio * 0.33f, 1f, 1f) | 0xFF000000, 0));
+                }
+                if (player && TRACERS.enabled) tracers.add(new Target(b, 0, color));
             }
-            if (player && PLAYER_ESP.enabled && e instanceof LivingEntity le) {
-                float ratio = MathHelper.clamp((le.getHealth() + le.getAbsorptionAmount()) / le.getMaxHealth(), 0f, 1f);
-                Box bg = new Box(b.minX - 0.14, b.minY, b.minZ - 0.14, b.minX - 0.08, b.maxY, b.minZ - 0.08);
-                Box fg = new Box(bg.minX, bg.minY, bg.minZ, bg.maxX, bg.minY + (bg.maxY - bg.minY) * ratio, bg.maxZ);
-                targets.add(new Target(bg, 0xB0000000, 0));
-                targets.add(new Target(fg, MathHelper.hsvToRgb(ratio * 0.33f, 1f, 1f) | 0xFF000000, 0));
-            }
-            if (player && TRACERS.enabled) tracers.add(new Target(b, 0, color));
         }
 
         if (STORAGE_ESP.enabled) {
-            int cx = mc.player.getChunkPos().x, cz = mc.player.getChunkPos().z;
-            for (int dx = -4; dx <= 4; dx++) {
-                for (int dz = -4; dz <= 4; dz++) {
-                    WorldChunk c = mc.world.getChunkManager().getWorldChunk(cx + dx, cz + dz);
-                    if (c == null) continue;
-                    for (BlockEntity be : c.getBlockEntities().values()) {
-                        int col;
-                        if (be instanceof EnderChestBlockEntity) col = 0xFFB066FF;
-                        else if (be instanceof ChestBlockEntity || be instanceof BarrelBlockEntity) col = 0xFFFFA500;
-                        else if (be instanceof ShulkerBoxBlockEntity) col = 0xFFFF5FD2;
-                        else if (be instanceof AbstractFurnaceBlockEntity || be instanceof HopperBlockEntity) col = 0xFF8A8A8A;
-                        else continue;
-                        targets.add(new Target(new Box(be.getPos()).offset(-cp.x, -cp.y, -cp.z),
-                                RenderUtil.alpha(col, 0x3C), col));
+            // сканируем чанки редко и кэшируем результат
+            long now = System.currentTimeMillis();
+            if (now - lastScan > (low ? 2500 : 1000)) {
+                lastScan = now;
+                STORAGE_CACHE.clear();
+                int rad = low ? 2 : 4;
+                int cx = mc.player.getChunkPos().x, cz = mc.player.getChunkPos().z;
+                for (int dx = -rad; dx <= rad; dx++) {
+                    for (int dz = -rad; dz <= rad; dz++) {
+                        WorldChunk c = mc.world.getChunkManager().getWorldChunk(cx + dx, cz + dz);
+                        if (c == null) continue;
+                        for (BlockEntity be : c.getBlockEntities().values()) {
+                            int col;
+                            if (be instanceof EnderChestBlockEntity) col = 0xFFB066FF;
+                            else if (be instanceof ChestBlockEntity || be instanceof BarrelBlockEntity) col = 0xFFFFA500;
+                            else if (be instanceof ShulkerBoxBlockEntity) col = 0xFFFF5FD2;
+                            else if (be instanceof AbstractFurnaceBlockEntity || be instanceof HopperBlockEntity) col = 0xFF8A8A8A;
+                            else continue;
+                            STORAGE_CACHE.add(new Stored(be.getPos(), col));
+                        }
                     }
                 }
             }
+            for (Stored s : STORAGE_CACHE) {
+                targets.add(new Target(new Box(s.pos).offset(-cp.x, -cp.y, -cp.z),
+                        low ? 0 : RenderUtil.alpha(s.color, 0x3C), s.color));
+            }
+        } else if (!STORAGE_CACHE.isEmpty()) {
+            STORAGE_CACHE.clear();
         }
 
-        List<Vec3d> path = TRAJECTORIES.enabled ? predict(mc) : null;
+        List<Vec3d> path = TRAJECTORIES.enabled ? predict(mc, low ? 60 : 150) : null;
 
         if (targets.isEmpty() && tracers.isEmpty() && path == null) return;
 
         RenderUtil.begin();
-        for (Target t : targets) RenderUtil.fillBox(m, t.fill, t.box);
 
-        RenderSystem.lineWidth(2f);
-        for (Target t : targets) if (t.outline != 0) RenderUtil.outlineBox(m, t.box, t.outline);
+        // ---- один draw call на все заливки
+        boolean hasFill = false;
+        for (Target t : targets) if (t.fill != 0) { hasFill = true; break; }
+        if (hasFill) {
+            BufferBuilder b = RenderUtil.quads();
+            for (Target t : targets) if (t.fill != 0) RenderUtil.addFill(b, m, t.box, t.fill);
+            BufferRenderer.drawWithGlobalProgram(b.end());
+        }
 
-        if (!tracers.isEmpty()) {
-            Vec3d look = Vec3d.fromPolar(cam.getPitch(), cam.getYaw());
+        // ---- один draw call на все контуры + трейсеры
+        RenderSystem.lineWidth(low ? 1f : 2f);
+        boolean hasLines = !tracers.isEmpty();
+        for (Target t : targets) if (t.outline != 0) { hasLines = true; break; }
+        if (hasLines) {
             BufferBuilder b = RenderUtil.lines();
-            for (Target t : tracers) {
-                Vec3d c = t.box.getCenter();
-                RenderUtil.line(b, m, look.x, look.y, look.z, c.x, c.y, c.z, t.outline);
+            for (Target t : targets) if (t.outline != 0) RenderUtil.addOutline(b, m, t.box, t.outline);
+            if (!tracers.isEmpty()) {
+                Vec3d look = Vec3d.fromPolar(cam.getPitch(), cam.getYaw());
+                for (Target t : tracers) {
+                    Vec3d c = t.box.getCenter();
+                    RenderUtil.line(b, m, look.x, look.y, look.z, c.x, c.y, c.z, t.outline);
+                }
             }
             BufferRenderer.drawWithGlobalProgram(b.end());
         }
@@ -143,7 +180,7 @@ public final class WorldVisuals {
 
             Vec3d end = path.get(path.size() - 1).subtract(cp);
             Box mark = new Box(end.x - 0.2, end.y - 0.2, end.z - 0.2, end.x + 0.2, end.y + 0.2, end.z + 0.2);
-            RenderUtil.fillBox(m, RenderUtil.alpha(col, 0x60), mark);
+            if (!low) RenderUtil.fillBox(m, mark, RenderUtil.alpha(col, 0x60));
             RenderUtil.outlineBox(m, mark, col);
         }
 
@@ -151,8 +188,7 @@ public final class WorldVisuals {
         RenderUtil.end();
     }
 
-    /** Предсказание траектории лука / перлов / снежков / зелий в руке. */
-    private static List<Vec3d> predict(MinecraftClient mc) {
+    private static List<Vec3d> predict(MinecraftClient mc, int maxSteps) {
         PlayerEntity p = mc.player;
         ItemStack st = p.getMainHandStack();
         Item it = st.getItem();
@@ -177,7 +213,7 @@ public final class WorldVisuals {
         List<Vec3d> pts = new ArrayList<>();
         pts.add(pos);
 
-        for (int i = 0; i < 150; i++) {
+        for (int i = 0; i < maxSteps; i++) {
             Vec3d next = pos.add(vel);
             var hit = mc.world.raycast(new RaycastContext(pos, next,
                     RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, p));
