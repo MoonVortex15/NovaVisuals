@@ -24,7 +24,7 @@ public final class Modules {
     public static final Module GLOW = add(new Module("Glow", RENDER, false) {
         @Override public void onTick(MinecraftClient mc) {
             if (mc.world == null) return;
-            for (PlayerEntity p : mc.world.getPlayers()) if (p != mc.player) p.setGlowing(true);
+            for (PlayerEntity p : mc.world.getPlayers()) if (p != mc.player && !p.isGlowing()) p.setGlowing(true);
         }
         @Override public void onDisable() {
             MinecraftClient mc = MinecraftClient.getInstance();
@@ -45,8 +45,11 @@ public final class Modules {
     public static final Module FULLBRIGHT = add(new Module("Fullbright", RENDER, false) {
         @Override public void onTick(MinecraftClient mc) {
             if (mc.player == null) return;
-            mc.player.addStatusEffect(new StatusEffectInstance(
-                    StatusEffects.NIGHT_VISION, 420, 0, false, false, false));
+            StatusEffectInstance cur = mc.player.getStatusEffect(StatusEffects.NIGHT_VISION);
+            if (cur == null || cur.getDuration() < 220) {
+                mc.player.addStatusEffect(new StatusEffectInstance(
+                        StatusEffects.NIGHT_VISION, 1200, 0, false, false, false));
+            }
         }
         @Override public void onDisable() {
             MinecraftClient mc = MinecraftClient.getInstance();
