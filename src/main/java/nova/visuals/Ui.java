@@ -13,6 +13,7 @@ public final class Ui {
     public static void roundRect(DrawContext ctx, int x, int y, int w, int h, int r, int c) {
         if (w <= 0 || h <= 0) return;
         r = Math.min(r, Math.min(w, h) / 2);
+        if (Perf.lite()) r = Math.min(r, 3);   // на слабом ПК меньше полосок на скругление
         if (r <= 0) { ctx.fill(x, y, x + w, y + h, c); return; }
         ctx.fill(x, y + r, x + w, y + h - r, c);
         for (int i = 0; i < r; i++) {
@@ -37,6 +38,7 @@ public final class Ui {
 
     /** Тёмная карточка с тонкой светлой обводкой. */
     public static void card(DrawContext ctx, int x, int y, int w, int h, int r) {
+        if (Perf.lite()) { roundRect(ctx, x, y, w, h, r, BG); return; }   // без обводки в lite-режиме
         roundRect(ctx, x - 1, y - 1, w + 2, h + 2, r + 1, 0x30FFFFFF);
         roundRect(ctx, x, y, w, h, r, BG);
     }
