@@ -4,7 +4,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.PlayerSkinDrawer;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.option.KeyBinding;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffectInstance;
@@ -140,14 +139,14 @@ public final class Widgets {
         ALL.add(new Widget("hotkeys", HOTKEYS, 0.82f, 0.25f) {
             @Override public void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit) {
                 String[] names = {"Menu", "Zoom"};
-                KeyBinding[] keys = {NovaClient.openGui, NovaClient.zoomKey};
+                String[] keys = {"Right Shift", NovaClient.keyName(ZOOM.keyCode)};
                 this.w = 112;
                 this.h = 25 + names.length * 16 + 3;
                 int cy = Ui.panel(ctx, mc, x, y, w, h, "Hot Keys");
                 for (int i = 0; i < names.length; i++) {
                     int ry = cy + i * 16 + 1;
                     Ui.text(ctx, mc, names[i], x + 8, ry + 3, 0xFFE8E8F4);
-                    String k = keys[i] != null ? keys[i].getBoundKeyLocalizedText().getString() : "-";
+                    String k = keys[i];
                     int kw = Ui.textW(mc, k) + 10;
                     Ui.roundRect(ctx, x + w - 8 - kw, ry, kw, 13, 4, 0xFF1B1B27);
                     Ui.text(ctx, mc, k, x + w - 8 - kw + 5, ry + 3, 0xFFD0CCFF);
