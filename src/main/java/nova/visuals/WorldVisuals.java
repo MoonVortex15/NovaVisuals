@@ -36,19 +36,35 @@ public final class WorldVisuals {
     private record Target(Box box, int fill, int outline) {}
     private record Stored(BlockPos pos, int color) {}
 
+    // списки переиспользуются каждый кадр — меньше мусора для сборщика памяти
+    private static final List<Target> TARGETS = new ArrayList<>();
+    private static final List<Target> TRACER_LIST = new ArrayList<>();
     private static final List<Stored> STORAGE_CACHE = new ArrayList<>();
     private static long lastScan;
 
+    private static List<Vec3d> pathCache;
+    private static long pathAt;
+
     public static void render(WorldRenderContext ctx) {
+        try {
+            renderInner(ctx);
+        } catch (Throwable t) {
+            try { RenderUtil.end(); RenderSystem.lineWidth(1f); } catch (Throwable ignored) {}
+            Safe.failGroup("WorldVisuals", t, PLAYER_ESP, PROJECTILE_ESP, ITEM_ESP, STORAGE_ESP, TRACERS, TRAJECTORIES);
+        }
+    }
+
+    private static void renderInner(WorldRenderContext ctx) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.world == null || mc.player == null) return;
         boolean any = PLAYER_ESP.enabled || PROJECTILE_ESP.enabled || ITEM_ESP.enabled
                 || STORAGE_ESP.enabled || TRACERS.enabled || TRAJECTORIES.enabled;
         if (!any) return;
 
-        boolean low = LOW_END.enabled;
-        double range = low ? 40 : 96;
+        boolean low = Perf.lite();
+        double range = low ? 36 : 80;
         double rangeSq = range * range;
+        int maxTargets = low ? 24 : 64;
 
         MatrixStack ms = ctx.matrixStack();
         if (ms == null) return;
@@ -57,13 +73,14 @@ public final class WorldVisuals {
         Vec3d cp = cam.getPos();
         float td = ctx.tickCounter().getTickDelta(true);
 
-        List<Target> targets = new ArrayList<>();
-        List<Target> tracers = new ArrayList<>();
+        TARGETS.clear();
+        TRACER_LIST.clear();
         boolean needEntities = PLAYER_ESP.enabled || PROJECTILE_ESP.enabled || ITEM_ESP.enabled || TRACERS.enabled;
         int i = 0;
 
         if (needEntities) {
             for (Entity e : mc.world.getEntities()) {
+                if (TARGETS.size() >= maxTargets) break;
                 if (e == mc.player) continue;
                 if (e.squaredDistanceTo(mc.player) > rangeSq) continue;
                 int color;
@@ -92,32 +109,32 @@ public final class WorldVisuals {
                         .offset(x - e.getX() - cp.x, y - e.getY() - cp.y, z - e.getZ() - cp.z);
 
                 if (!player || PLAYER_ESP.enabled) {
-                    targets.add(new Target(b, low ? 0 : RenderUtil.alpha(color, 0x3C), color));
+                    TARGETS.add(new Target(b, low ? 0 : RenderUtil.alpha(color, 0x3C), color));
                 }
                 if (!low && player && PLAYER_ESP.enabled && e instanceof LivingEntity le) {
                     float ratio = MathHelper.clamp((le.getHealth() + le.getAbsorptionAmount()) / le.getMaxHealth(), 0f, 1f);
                     Box bg = new Box(b.minX - 0.14, b.minY, b.minZ - 0.14, b.minX - 0.08, b.maxY, b.minZ - 0.08);
                     Box fg = new Box(bg.minX, bg.minY, bg.minZ, bg.maxX, bg.minY + (bg.maxY - bg.minY) * ratio, bg.maxZ);
-                    targets.add(new Target(bg, 0xB0000000, 0));
-                    targets.add(new Target(fg, MathHelper.hsvToRgb(ratio * 0.33f, 1f, 1f) | 0xFF000000, 0));
+                    TARGETS.add(new Target(bg, 0xB0000000, 0));
+                    TARGETS.add(new Target(fg, MathHelper.hsvToRgb(ratio * 0.33f, 1f, 1f) | 0xFF000000, 0));
                 }
-                if (player && TRACERS.enabled) tracers.add(new Target(b, 0, color));
+                if (player && TRACERS.enabled) TRACER_LIST.add(new Target(b, 0, color));
             }
         }
 
         if (STORAGE_ESP.enabled) {
-            // сканируем чанки редко и кэшируем результат
             long now = System.currentTimeMillis();
-            if (now - lastScan > (low ? 2500 : 1000)) {
+            if (now - lastScan > (low ? 3000 : 1000)) {
                 lastScan = now;
                 STORAGE_CACHE.clear();
-                int rad = low ? 2 : 4;
+                int rad = low ? 2 : 3;
                 int cx = mc.player.getChunkPos().x, cz = mc.player.getChunkPos().z;
                 for (int dx = -rad; dx <= rad; dx++) {
                     for (int dz = -rad; dz <= rad; dz++) {
                         WorldChunk c = mc.world.getChunkManager().getWorldChunk(cx + dx, cz + dz);
                         if (c == null) continue;
                         for (BlockEntity be : c.getBlockEntities().values()) {
+                            if (STORAGE_CACHE.size() >= 96) break;
                             int col;
                             if (be instanceof EnderChestBlockEntity) col = 0xFFB066FF;
                             else if (be instanceof ChestBlockEntity || be instanceof BarrelBlockEntity) col = 0xFFFFA500;
@@ -129,39 +146,50 @@ public final class WorldVisuals {
                     }
                 }
             }
+            int drawn = 0;
             for (Stored s : STORAGE_CACHE) {
-                targets.add(new Target(new Box(s.pos).offset(-cp.x, -cp.y, -cp.z),
+                if (drawn >= maxTargets) break;
+                double dx = s.pos.getX() + 0.5 - cp.x, dy = s.pos.getY() + 0.5 - cp.y, dz = s.pos.getZ() + 0.5 - cp.z;
+                if (dx * dx + dy * dy + dz * dz > rangeSq) continue;
+                TARGETS.add(new Target(new Box(s.pos).offset(-cp.x, -cp.y, -cp.z),
                         low ? 0 : RenderUtil.alpha(s.color, 0x3C), s.color));
+                drawn++;
             }
         } else if (!STORAGE_CACHE.isEmpty()) {
             STORAGE_CACHE.clear();
         }
 
-        List<Vec3d> path = TRAJECTORIES.enabled ? predict(mc, low ? 60 : 150) : null;
+        List<Vec3d> path = null;
+        if (TRAJECTORIES.enabled) {
+            long now = System.currentTimeMillis();
+            if (!low || now - pathAt > 66) {
+                pathCache = predict(mc, low ? 50 : 100);
+                pathAt = now;
+            }
+            path = pathCache;
+        }
 
-        if (targets.isEmpty() && tracers.isEmpty() && path == null) return;
+        if (TARGETS.isEmpty() && TRACER_LIST.isEmpty() && (path == null || path.size() < 2)) return;
 
         RenderUtil.begin();
 
-        // ---- один draw call на все заливки
         boolean hasFill = false;
-        for (Target t : targets) if (t.fill != 0) { hasFill = true; break; }
+        for (Target t : TARGETS) if (t.fill != 0) { hasFill = true; break; }
         if (hasFill) {
             BufferBuilder b = RenderUtil.quads();
-            for (Target t : targets) if (t.fill != 0) RenderUtil.addFill(b, m, t.box, t.fill);
+            for (Target t : TARGETS) if (t.fill != 0) RenderUtil.addFill(b, m, t.box, t.fill);
             BufferRenderer.drawWithGlobalProgram(b.end());
         }
 
-        // ---- один draw call на все контуры + трейсеры
         RenderSystem.lineWidth(low ? 1f : 2f);
-        boolean hasLines = !tracers.isEmpty();
-        for (Target t : targets) if (t.outline != 0) { hasLines = true; break; }
+        boolean hasLines = !TRACER_LIST.isEmpty();
+        for (Target t : TARGETS) if (t.outline != 0) { hasLines = true; break; }
         if (hasLines) {
             BufferBuilder b = RenderUtil.lines();
-            for (Target t : targets) if (t.outline != 0) RenderUtil.addOutline(b, m, t.box, t.outline);
-            if (!tracers.isEmpty()) {
+            for (Target t : TARGETS) if (t.outline != 0) RenderUtil.addOutline(b, m, t.box, t.outline);
+            if (!TRACER_LIST.isEmpty()) {
                 Vec3d look = Vec3d.fromPolar(cam.getPitch(), cam.getYaw());
-                for (Target t : tracers) {
+                for (Target t : TRACER_LIST) {
                     Vec3d c = t.box.getCenter();
                     RenderUtil.line(b, m, look.x, look.y, look.z, c.x, c.y, c.z, t.outline);
                 }
@@ -173,8 +201,8 @@ public final class WorldVisuals {
             int col = RenderUtil.rainbow(0, 0.5f);
             BufferBuilder b = RenderUtil.lines();
             for (int k = 1; k < path.size(); k++) {
-                Vec3d a = path.get(k - 1).subtract(cp), d = path.get(k).subtract(cp);
-                RenderUtil.line(b, m, a.x, a.y, a.z, d.x, d.y, d.z, col);
+                Vec3d a = path.get(k - 1), d = path.get(k);
+                RenderUtil.line(b, m, a.x - cp.x, a.y - cp.y, a.z - cp.z, d.x - cp.x, d.y - cp.y, d.z - cp.z, col);
             }
             BufferRenderer.drawWithGlobalProgram(b.end());
 
@@ -210,7 +238,7 @@ public final class WorldVisuals {
 
         Vec3d pos = p.getEyePos().subtract(0, 0.1, 0);
         Vec3d vel = Vec3d.fromPolar(p.getPitch(), p.getYaw()).multiply(speed);
-        List<Vec3d> pts = new ArrayList<>();
+        List<Vec3d> pts = new ArrayList<>(maxSteps + 2);
         pts.add(pos);
 
         for (int i = 0; i < maxSteps; i++) {
