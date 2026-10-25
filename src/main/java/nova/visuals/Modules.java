@@ -93,15 +93,19 @@ public final class Modules {
         }
     });
 
-    // ---------- HUD ----------
-    public static final Module HUD         = add(new Module("HUD", HUD_CAT(), true));
-    public static final Module ARMOR_HUD   = add(new Module("ArmorHUD", HUD_CAT(), true));
-    public static final Module POTION_HUD  = add(new Module("PotionHUD", HUD_CAT(), true));
+    // ---------- HUD (все элементы можно перетаскивать мышкой при открытом чате) ----------
+    public static final Module WATERMARK   = add(new Module("Watermark", HUD_CAT(), true));
+    public static final Module COORDS      = add(new Module("Coords", HUD_CAT(), true));
+    public static final Module POTION_HUD  = add(new Module("Potions", HUD_CAT(), true));
+    public static final Module HOTKEYS     = add(new Module("HotKeys", HUD_CAT(), true));
     public static final Module TARGET_HUD  = add(new Module("TargetHUD", HUD_CAT(), true));
+    public static final Module COOLDOWNS   = add(new Module("Cooldowns", HUD_CAT(), true));
+    public static final Module ARMOR_HUD   = add(new Module("ArmorHUD", HUD_CAT(), true));
     public static final Module KEYSTROKES  = add(new Module("Keystrokes", HUD_CAT(), false));
     public static final Module ITEM_COUNT  = add(new Module("ItemCounter", HUD_CAT(), false));
     public static final Module RADAR       = add(new Module("Radar", HUD_CAT(), false));
     public static final Module COMBO       = add(new Module("Combo", HUD_CAT(), true));
+    public static final Module ARRAY_LIST  = add(new Module("ArrayList", HUD_CAT(), false));
 
     // ---------- WORLD ----------
     public static final Module NO_WEATHER = add(new Module("NoWeather", WORLD, false) {
