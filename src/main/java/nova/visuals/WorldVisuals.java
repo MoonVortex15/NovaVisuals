@@ -40,6 +40,9 @@ public final class WorldVisuals {
     private static final List<Target> TARGETS = new ArrayList<>();
     private static final List<Target> TRACER_LIST = new ArrayList<>();
     private static final List<Stored> STORAGE_CACHE = new ArrayList<>();
+    private static final List<Entity> ENTITY_CACHE = new ArrayList<>();
+    private static long lastEntityScan;
+    private static net.minecraft.world.World cachedWorld;
     private static long lastScan;
 
     private static List<Vec3d> pathCache;
@@ -50,18 +53,25 @@ public final class WorldVisuals {
             renderInner(ctx);
         } catch (Throwable t) {
             try { RenderUtil.end(); RenderSystem.lineWidth(1f); } catch (Throwable ignored) {}
-            Safe.failGroup("WorldVisuals", t, PLAYER_ESP, PROJECTILE_ESP, ITEM_ESP, STORAGE_ESP, TRACERS, TRAJECTORIES);
+            Safe.failGroup("WorldVisuals", t, PLAYER_ESP, MOB_ESP, PROJECTILE_ESP, ITEM_ESP, STORAGE_ESP, TRACERS, TRAJECTORIES, TARGET_INDICATOR);
         }
     }
 
     private static void renderInner(WorldRenderContext ctx) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.world == null || mc.player == null) return;
-        boolean any = PLAYER_ESP.enabled || PROJECTILE_ESP.enabled || ITEM_ESP.enabled
-                || STORAGE_ESP.enabled || TRACERS.enabled || TRAJECTORIES.enabled;
+        boolean any = PLAYER_ESP.enabled || MOB_ESP.enabled || PROJECTILE_ESP.enabled || ITEM_ESP.enabled
+                || STORAGE_ESP.enabled || TRACERS.enabled || TRAJECTORIES.enabled || TARGET_INDICATOR.enabled;
         if (!any) return;
 
         boolean low = Perf.lite();
+        if (cachedWorld != mc.world) {
+            cachedWorld = mc.world;
+            ENTITY_CACHE.clear();
+            STORAGE_CACHE.clear();
+            lastEntityScan = 0;
+            lastScan = 0;
+        }
         double range = low ? 36 : 80;
         double rangeSq = range * range;
         int maxTargets = low ? 24 : 64;
@@ -75,14 +85,27 @@ public final class WorldVisuals {
 
         TARGETS.clear();
         TRACER_LIST.clear();
-        boolean needEntities = PLAYER_ESP.enabled || PROJECTILE_ESP.enabled || ITEM_ESP.enabled || TRACERS.enabled;
+        boolean needEntities = PLAYER_ESP.enabled || MOB_ESP.enabled || PROJECTILE_ESP.enabled || ITEM_ESP.enabled || TRACERS.enabled;
         int i = 0;
 
         if (needEntities) {
-            for (Entity e : mc.world.getEntities()) {
+            long now = System.currentTimeMillis();
+            if (now - lastEntityScan > (low ? 300 : 100)) {
+                ENTITY_CACHE.clear();
+                for (Entity candidate : mc.world.getEntities()) {
+                    if (candidate == mc.player || candidate.squaredDistanceTo(mc.player) > rangeSq) continue;
+                    boolean relevant = (candidate instanceof PlayerEntity && (PLAYER_ESP.enabled || TRACERS.enabled))
+                            || (candidate instanceof LivingEntity && !(candidate instanceof PlayerEntity) && MOB_ESP.enabled)
+                            || (candidate instanceof ItemEntity && ITEM_ESP.enabled)
+                            || ((candidate instanceof EndCrystalEntity || candidate instanceof ProjectileEntity) && PROJECTILE_ESP.enabled);
+                    if (relevant) ENTITY_CACHE.add(candidate);
+                    if (ENTITY_CACHE.size() >= maxTargets * 2) break;
+                }
+                lastEntityScan = now;
+            }
+            for (Entity e : ENTITY_CACHE) {
                 if (TARGETS.size() >= maxTargets) break;
-                if (e == mc.player) continue;
-                if (e.squaredDistanceTo(mc.player) > rangeSq) continue;
+                if (e.isRemoved() || e == mc.player || e.squaredDistanceTo(mc.player) > rangeSq) continue;
                 int color;
                 boolean player = false;
 
@@ -91,6 +114,9 @@ public final class WorldVisuals {
                     player = true;
                     color = RenderUtil.rainbow(i * 25, 0.65f);
                     i++;
+                } else if (e instanceof LivingEntity) {
+                    if (!MOB_ESP.enabled) continue;
+                    color = 0xFFFF7BC8;
                 } else if (e instanceof ItemEntity) {
                     if (!ITEM_ESP.enabled) continue;
                     color = 0xFFFFD54A;
@@ -120,6 +146,8 @@ public final class WorldVisuals {
                 }
                 if (player && TRACERS.enabled) TRACER_LIST.add(new Target(b, 0, color));
             }
+        } else if (!ENTITY_CACHE.isEmpty()) {
+            ENTITY_CACHE.clear();
         }
 
         if (STORAGE_ESP.enabled) {
@@ -169,7 +197,8 @@ public final class WorldVisuals {
             path = pathCache;
         }
 
-        if (TARGETS.isEmpty() && TRACER_LIST.isEmpty() && (path == null || path.size() < 2)) return;
+        boolean drawTargetMarker = shouldDrawTargetMarker(mc);
+        if (TARGETS.isEmpty() && TRACER_LIST.isEmpty() && (path == null || path.size() < 2) && !drawTargetMarker) return;
 
         RenderUtil.begin();
 
@@ -212,8 +241,55 @@ public final class WorldVisuals {
             RenderUtil.outlineBox(m, mark, col);
         }
 
+        if (drawTargetMarker) drawTargetMarker(m, cp, td);
+
         RenderSystem.lineWidth(1f);
         RenderUtil.end();
+    }
+
+    private static boolean shouldDrawTargetMarker(MinecraftClient mc) {
+        LivingEntity target = State.target;
+        return TARGET_INDICATOR.enabled && target != null && !target.isRemoved()
+                && target.getWorld() == mc.world
+                && System.currentTimeMillis() - State.targetTime <= TargetIndicatorSettings.durationMs;
+    }
+
+    /** Draws a low-cost rotating four-sided frame around the most recently attacked entity. */
+    private static void drawTargetMarker(Matrix4f matrix, Vec3d cameraPos, float tick) {
+        LivingEntity target = State.target;
+        if (target == null) return;
+        double x = MathHelper.lerp(tick, target.prevX, target.getX()) - cameraPos.x;
+        double y = MathHelper.lerp(tick, target.prevY, target.getY());
+        double z = MathHelper.lerp(tick, target.prevZ, target.getZ()) - cameraPos.z;
+        double half = TargetIndicatorSettings.size;
+        double lowY = y + target.getHeight() * 0.22 - cameraPos.y;
+        double highY = y + target.getHeight() * 0.78 - cameraPos.y;
+        double angle = System.currentTimeMillis() * 0.001 * TargetIndicatorSettings.speed;
+        double[][] points = TargetIndicatorSettings.shape == 0
+                ? new double[][]{{-1,-1},{1,-1},{1,1},{-1,1}}
+                : new double[][]{{0,-1},{1,0},{0,1},{-1,0}};
+        double[][] lower = new double[4][3];
+        double[][] upper = new double[4][3];
+        double sin = Math.sin(angle), cos = Math.cos(angle);
+        for (int i = 0; i < 4; i++) {
+            double ox = points[i][0] * half, oz = points[i][1] * half;
+            double rx = ox * cos - oz * sin, rz = ox * sin + oz * cos;
+            lower[i] = new double[]{x + rx, lowY, z + rz};
+            upper[i] = new double[]{x + rx, highY, z + rz};
+        }
+        int color = switch (TargetIndicatorSettings.colorMode) {
+            case 1 -> 0xFF45E8FF;
+            case 2 -> 0xFFB18CFF;
+            default -> RenderUtil.rainbow(0, 0.8f);
+        };
+        BufferBuilder b = RenderUtil.lines();
+        for (int i = 0; i < 4; i++) {
+            int n = (i + 1) % 4;
+            RenderUtil.line(b, matrix, lower[i][0], lower[i][1], lower[i][2], lower[n][0], lower[n][1], lower[n][2], color);
+            RenderUtil.line(b, matrix, upper[i][0], upper[i][1], upper[i][2], upper[n][0], upper[n][1], upper[n][2], color);
+            RenderUtil.line(b, matrix, lower[i][0], lower[i][1], lower[i][2], upper[i][0], upper[i][1], upper[i][2], RenderUtil.alpha(color, 0xB0));
+        }
+        BufferRenderer.drawWithGlobalProgram(b.end());
     }
 
     private static List<Vec3d> predict(MinecraftClient mc, int maxSteps) {
