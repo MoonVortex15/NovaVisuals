@@ -47,19 +47,50 @@ public final class Hud {
     }
 
     // ------------------------------------------------------------------ watermark + arraylist
+    public static void gradBar(DrawContext ctx, int x1, int y, int x2, int h) {
+        for (int x = x1; x < x2; x += 3) {
+            ctx.fill(x, y, Math.min(x + 3, x2), y + h, RenderUtil.gradient((x - x1) / 3.0));
+        }
+    }
+
+    public static void gradText(DrawContext ctx, MinecraftClient mc, String text, int x, int y, double off) {
+        int cx = x;
+        for (int i = 0; i < text.length(); i++) {
+            String ch = String.valueOf(text.charAt(i));
+            ctx.drawTextWithShadow(mc.textRenderer, ch, cx, y, RenderUtil.gradient(off + i * 2));
+            cx += mc.textRenderer.getWidth(ch);
+        }
+    }
+
     private static void watermark(DrawContext ctx, MinecraftClient mc, int sw) {
         int ping = 0;
         if (mc.getNetworkHandler() != null) {
             PlayerListEntry e = mc.getNetworkHandler().getPlayerListEntry(mc.player.getUuid());
             if (e != null) ping = e.getLatency();
         }
-        String wm = "Nova §7| §f" + mc.getCurrentFps() + " fps §7| §f" + ping + " ms §7| §f"
-                + String.format("%.0f %.0f %.0f", mc.player.getX(), mc.player.getY(), mc.player.getZ());
-        int w = mc.textRenderer.getWidth(wm) + 8;
-        ctx.fill(4, 4, 4 + w, 17, 0x90000000);
-        ctx.fill(4, 4, 4 + w, 5, RenderUtil.rainbow(0, 0.7f));
-        ctx.drawTextWithShadow(mc.textRenderer, wm, 8, 7, RenderUtil.rainbow(0, 0.5f));
+        String server = mc.getCurrentServerEntry() != null ? mc.getCurrentServerEntry().address : "singleplayer";
+        String info = " §7| §f" + mc.getCurrentFps() + " fps §7| §f" + ping + " ms §7| §f" + server;
 
+        int nameW = mc.textRenderer.getWidth(Brand.NAME);
+        int x = 4, y = 4, h = 16;
+        int w = 20 + nameW + mc.textRenderer.getWidth(info) + 6;
+        ctx.fill(x, y, x + w, y + h, 0xD00E0E16);
+        gradBar(ctx, x, y, x + w, 1);
+        ctx.fill(x + 1, y + 1, x + 15, y + h, RenderUtil.alpha(RenderUtil.gradient(0), 0xB0));
+        ctx.drawCenteredTextWithShadow(mc.textRenderer, Brand.NAME.substring(0, 1), x + 8, y + 5, 0xFFFFFFFF);
+        gradText(ctx, mc, Brand.NAME, x + 20, y + 5, 0);
+        ctx.drawTextWithShadow(mc.textRenderer, info, x + 20 + nameW, y + 5, 0xFFFFFFFF);
+
+        // вторая плашка: координаты + скорость
+        double bps = Math.hypot(mc.player.getX() - mc.player.prevX, mc.player.getZ() - mc.player.prevZ) * 20;
+        String xyz = String.format("XYZ §f%.0f %.0f %.0f §7| §f%.1f b/s",
+                mc.player.getX(), mc.player.getY(), mc.player.getZ(), bps);
+        int w2 = mc.textRenderer.getWidth(xyz) + 12;
+        ctx.fill(x, y + h + 2, x + w2, y + h + 2 + 14, 0xB00E0E16);
+        ctx.fill(x, y + h + 2, x + 2, y + h + 2 + 14, RenderUtil.gradient(6));
+        ctx.drawTextWithShadow(mc.textRenderer, xyz, x + 7, y + h + 2 + 3, 0xFFB8B8C8);
+
+        // arraylist справа
         long nowMs = System.currentTimeMillis();
         if (activeCache == null || nowMs - activeBuilt > 500) {
             activeCache = ALL.stream()
@@ -68,15 +99,14 @@ public final class Hud {
                     .toList();
             activeBuilt = nowMs;
         }
-        List<Module> active = activeCache;
-        int y = 4, idx = 0;
-        for (Module m : active) {
+        int ay = 4, idx = 0;
+        for (Module m : activeCache) {
             int tw = mc.textRenderer.getWidth(m.name);
-            int col = RenderUtil.rainbow(idx * 40, 0.6f);
-            ctx.fill(sw - tw - 8, y, sw - 2, y + 11, 0x90000000);
-            ctx.fill(sw - 2, y, sw, y + 11, col);
-            ctx.drawTextWithShadow(mc.textRenderer, m.name, sw - tw - 5, y + 2, col);
-            y += 11;
+            int col = RenderUtil.gradient(idx * 4);
+            ctx.fill(sw - tw - 9, ay, sw - 2, ay + 11, 0xB00E0E16);
+            ctx.fill(sw - 2, ay, sw, ay + 11, col);
+            ctx.drawTextWithShadow(mc.textRenderer, m.name, sw - tw - 5, ay + 2, col);
+            ay += 11;
             idx++;
         }
     }
