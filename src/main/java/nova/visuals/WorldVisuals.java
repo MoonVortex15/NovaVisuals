@@ -254,40 +254,73 @@ public final class WorldVisuals {
                 && System.currentTimeMillis() - State.targetTime <= TargetIndicatorSettings.durationMs;
     }
 
-    /** Draws a low-cost rotating four-sided frame around the most recently attacked entity. */
+    /** Рисует настраиваемый 3D-маркер вокруг последней атакованной цели. */
     private static void drawTargetMarker(Matrix4f matrix, Vec3d cameraPos, float tick) {
         LivingEntity target = State.target;
         if (target == null) return;
         double x = MathHelper.lerp(tick, target.prevX, target.getX()) - cameraPos.x;
-        double y = MathHelper.lerp(tick, target.prevY, target.getY());
+        double y = MathHelper.lerp(tick, target.prevY, target.getY()) - cameraPos.y;
         double z = MathHelper.lerp(tick, target.prevZ, target.getZ()) - cameraPos.z;
-        double half = TargetIndicatorSettings.size;
-        double lowY = y + target.getHeight() * 0.22 - cameraPos.y;
-        double highY = y + target.getHeight() * 0.78 - cameraPos.y;
+        double half = TargetIndicatorSettings.size * Math.max(0.55, target.getWidth() * 0.72);
+        double lowY = target.getHeight() * 0.18;
+        double highY = target.getHeight() * 0.82;
         double angle = System.currentTimeMillis() * 0.001 * TargetIndicatorSettings.speed;
-        double[][] points = TargetIndicatorSettings.shape == 0
-                ? new double[][]{{-1,-1},{1,-1},{1,1},{-1,1}}
-                : new double[][]{{0,-1},{1,0},{0,1},{-1,0}};
-        double[][] lower = new double[4][3];
-        double[][] upper = new double[4][3];
-        double sin = Math.sin(angle), cos = Math.cos(angle);
-        for (int i = 0; i < 4; i++) {
-            double ox = points[i][0] * half, oz = points[i][1] * half;
-            double rx = ox * cos - oz * sin, rz = ox * sin + oz * cos;
-            lower[i] = new double[]{x + rx, lowY, z + rz};
-            upper[i] = new double[]{x + rx, highY, z + rz};
-        }
         int color = switch (TargetIndicatorSettings.colorMode) {
             case 1 -> 0xFF45E8FF;
             case 2 -> 0xFFB18CFF;
             default -> RenderUtil.rainbow(0, 0.8f);
         };
         BufferBuilder b = RenderUtil.lines();
-        for (int i = 0; i < 4; i++) {
-            int n = (i + 1) % 4;
-            RenderUtil.line(b, matrix, lower[i][0], lower[i][1], lower[i][2], lower[n][0], lower[n][1], lower[n][2], color);
-            RenderUtil.line(b, matrix, upper[i][0], upper[i][1], upper[i][2], upper[n][0], upper[n][1], upper[n][2], color);
-            RenderUtil.line(b, matrix, lower[i][0], lower[i][1], lower[i][2], upper[i][0], upper[i][1], upper[i][2], RenderUtil.alpha(color, 0xB0));
+
+        if (TargetIndicatorSettings.shape == 0) {
+            // Настоящий вращающийся 3D-куб: восемь вершин и двенадцать рёбер.
+            double[][] v = new double[8][3];
+            for (int i = 0; i < 8; i++) {
+                double ox = (i & 1) == 0 ? -half : half;
+                double oz = (i & 2) == 0 ? -half : half;
+                double oy = (i & 4) == 0 ? lowY : highY;
+                double rx = ox * Math.cos(angle) - oz * Math.sin(angle);
+                double rz = ox * Math.sin(angle) + oz * Math.cos(angle);
+                v[i] = new double[]{x + rx, y + oy, z + rz};
+            }
+            for (int i = 0; i < 8; i++) {
+                for (int bit = 1; bit <= 4; bit *= 2) {
+                    int j = i ^ bit;
+                    if (i < j) RenderUtil.line(b, matrix, v[i][0], v[i][1], v[i][2], v[j][0], v[j][1], v[j][2], color);
+                }
+            }
+        } else if (TargetIndicatorSettings.shape == 1) {
+            // Два кольца и вертикальные соединители дают объёмный круговой маркер.
+            int segments = Perf.lite() ? 16 : 32;
+            double radius = half * 1.05;
+            double y1 = y + (lowY + highY) * 0.5;
+            double y2 = y1 + Math.max(0.18, target.getHeight() * 0.22);
+            for (int ring = 0; ring < 2; ring++) {
+                double ry = ring == 0 ? y1 : y2;
+                for (int i = 0; i < segments; i++) {
+                    double a1 = angle + Math.PI * 2.0 * i / segments;
+                    double a2 = angle + Math.PI * 2.0 * (i + 1) / segments;
+                    RenderUtil.line(b, matrix, x + Math.cos(a1) * radius, ry, z + Math.sin(a1) * radius,
+                            x + Math.cos(a2) * radius, ry, z + Math.sin(a2) * radius, color);
+                }
+            }
+            for (int i = 0; i < 4; i++) {
+                double a = angle + Math.PI * 2.0 * i / 4.0;
+                RenderUtil.line(b, matrix, x + Math.cos(a) * radius, y1, z + Math.sin(a) * radius,
+                        x + Math.cos(a) * radius, y2, z + Math.sin(a) * radius, RenderUtil.alpha(color, 0xB0));
+            }
+        } else {
+            // Вращающийся квадрат в горизонтальной плоскости вокруг середины цели.
+            double cy = y + target.getHeight() * 0.5;
+            double[][] pts = {{-half,-half},{half,-half},{half,half},{-half,half}};
+            for (int i = 0; i < 4; i++) {
+                int n = (i + 1) % 4;
+                double ax = pts[i][0] * Math.cos(angle) - pts[i][1] * Math.sin(angle);
+                double az = pts[i][0] * Math.sin(angle) + pts[i][1] * Math.cos(angle);
+                double bx = pts[n][0] * Math.cos(angle) - pts[n][1] * Math.sin(angle);
+                double bz = pts[n][0] * Math.sin(angle) + pts[n][1] * Math.cos(angle);
+                RenderUtil.line(b, matrix, x + ax, cy, z + az, x + bx, cy, z + bz, color);
+            }
         }
         BufferRenderer.drawWithGlobalProgram(b.end());
     }
