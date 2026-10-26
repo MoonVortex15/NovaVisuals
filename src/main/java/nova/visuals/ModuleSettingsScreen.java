@@ -96,6 +96,7 @@ public final class ModuleSettingsScreen extends Screen {
             row(ctx, mx, my, 8, "Поворот Y", VisualEffectsSettings.handRotY + "°", false);
             row(ctx, mx, my, 9, "Поворот Z", VisualEffectsSettings.handRotZ + "°", false);
             row(ctx, mx, my, 10, "Анимация взмаха", VisualEffectsSettings.handAnimation == 1 ? "ВЫКЛ" : "ОБЫЧНАЯ", false);
+            row(ctx, mx, my, 11, "Скорость анимации", String.format(java.util.Locale.ROOT, "%.2fx", VisualEffectsSettings.handAnimationSpeed), false);
         }
         if (module == Modules.BLOCK_OVERLAY) {
             row(ctx, mx, my, 3, "Цвет контура", new String[]{"Фиолетовый", "Циан", "Розовый", "Мятный"}[VisualSettings.blockColor], false);
@@ -193,6 +194,7 @@ public final class ModuleSettingsScreen extends Screen {
                 case 8 -> VisualEffectsSettings.handRotY = stepAngle(VisualEffectsSettings.handRotY);
                 case 9 -> VisualEffectsSettings.handRotZ = stepAngle(VisualEffectsSettings.handRotZ);
                 case 10 -> VisualEffectsSettings.handAnimation = 1 - VisualEffectsSettings.handAnimation;
+                case 11 -> VisualEffectsSettings.handAnimationSpeed = VisualEffectsSettings.handAnimationSpeed >= 3.0f ? 0.25f : Math.min(3.0f, Math.round((VisualEffectsSettings.handAnimationSpeed + 0.25f) * 100.0f) / 100.0f);
                 default -> { return super.mouseClicked(mx, my, button); }
             }
             Config.save();
@@ -241,7 +243,7 @@ public final class ModuleSettingsScreen extends Screen {
     private float stepFloat(float value, float min, float max, float step) {
         return value >= max ? min : Math.min(max, Math.round((value + step) * 100f) / 100f);
     }
-    private int stepAngle(int value) { return value >= 45 ? -45 : value + 5; }
+    private int stepAngle(int value) { return value >= 180 ? -180 : value + 15; }
 
     private String onOff(boolean value) { return value ? "ВКЛ" : "ВЫКЛ"; }
 
