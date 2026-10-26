@@ -24,6 +24,7 @@ public final class Config {
         TargetIndicatorSettings.load(p);
         TrajectorySettings.load(p);
         VisualSettings.load(p);
+        VisualEffectsSettings.load(p);
         for (Widget w : Widgets.ALL) {
             String v = p.getProperty("pos." + w.id);
             if (v == null) continue;
@@ -42,6 +43,7 @@ public final class Config {
         TargetIndicatorSettings.save(p);
         TrajectorySettings.save(p);
         VisualSettings.save(p);
+        VisualEffectsSettings.save(p);
         for (Widget w : Widgets.ALL) p.setProperty("pos." + w.id, w.rx + "," + w.ry);
         try (var out = Files.newOutputStream(FILE)) { p.store(out, "Nova Visuals"); } catch (IOException ignored) {}
     }
