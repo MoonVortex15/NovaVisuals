@@ -16,8 +16,8 @@ import static nova.visuals.Modules.*;
 public final class Widgets {
     public static final List<Widget> ALL = new ArrayList<>();
 
-    // Зарегистрированные виджеты
-    public static final Widget STATUS_BAR = register(new Widget("status_bar", HUD, 0.5f, 0.02f, 160, 20) {
+    // Используем существующие модули из Modules в качестве привязки виджетов
+    public static final Widget STATUS_BAR = register(new Widget("status_bar", ARRAY_LIST, 0.5f, 0.02f, 160, 20) {
         @Override
         public void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit) {
             String text = "Маяк / Элитный";
@@ -29,7 +29,7 @@ public final class Widgets {
         }
     });
 
-    public static final Widget POTIONS = register(new Widget("potions", HUD, 0.02f, 0.1f, 130, 80) {
+    public static final Widget POTIONS = register(new Widget("potions", ARRAY_LIST, 0.02f, 0.1f, 130, 80) {
         @Override
         public void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit) {
             Collection<StatusEffectInstance> effects = mc.player != null ? mc.player.getStatusEffects() : List.of();
@@ -57,7 +57,7 @@ public final class Widgets {
         }
     });
 
-    public static final Widget HOT_KEYS = register(new Widget("hot_keys", HUD, 0.85f, 0.1f, 115, 80) {
+    public static final Widget HOT_KEYS = register(new Widget("hot_keys", ARRAY_LIST, 0.85f, 0.1f, 115, 80) {
         @Override
         public void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit) {
             Ui.card(ctx, x, y, w, h, 10);
@@ -75,7 +75,7 @@ public final class Widgets {
         }
     });
 
-    public static final Widget TARGET_HUD = register(new Widget("target_hud", HUD, 0.4f, 0.55f, 150, 50) {
+    public static final Widget TARGET_HUD = register(new Widget("target_hud", ARRAY_LIST, 0.4f, 0.55f, 150, 50) {
         @Override
         public void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit) {
             PlayerEntity target = mc.player;
@@ -113,7 +113,7 @@ public final class Widgets {
         }
     });
 
-    public static final Widget COOLDOWNS = register(new Widget("cooldowns", HUD, 0.45f, 0.8f, 140, 36) {
+    public static final Widget COOLDOWNS = register(new Widget("cooldowns", ARRAY_LIST, 0.45f, 0.8f, 140, 36) {
         @Override
         public void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit) {
             Ui.card(ctx, x, y, w, h, 10);
