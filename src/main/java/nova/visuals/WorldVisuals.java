@@ -15,10 +15,12 @@ import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.item.BowItem;
+import net.minecraft.item.CrossbowItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
@@ -61,7 +63,7 @@ public final class WorldVisuals {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.world == null || mc.player == null) return;
         boolean any = PLAYER_ESP.enabled || MOB_ESP.enabled || PROJECTILE_ESP.enabled || ITEM_ESP.enabled
-                || STORAGE_ESP.enabled || TRACERS.enabled || TRAJECTORIES.enabled || TARGET_INDICATOR.enabled;
+                || STORAGE_ESP.enabled || TRACERS.enabled || TRAJECTORIES.enabled || TARGET_INDICATOR.enabled || BLOCK_OVERLAY.enabled;
         if (!any) return;
 
         boolean low = Perf.lite();
@@ -187,6 +189,14 @@ public final class WorldVisuals {
             STORAGE_CACHE.clear();
         }
 
+        if (BLOCK_OVERLAY.enabled && mc.crosshairTarget instanceof BlockHitResult blockHit) {
+            BlockPos pos = blockHit.getBlockPos();
+            if (!mc.world.getBlockState(pos).isAir()) {
+                Box selected = new Box(pos).offset(-cp.x, -cp.y, -cp.z).expand(0.002);
+                TARGETS.add(new Target(selected, 0, VisualSettings.blockColorArgb()));
+            }
+        }
+
         List<Vec3d> path = null;
         if (TRAJECTORIES.enabled) {
             long now = System.currentTimeMillis();
@@ -210,7 +220,7 @@ public final class WorldVisuals {
             BufferRenderer.drawWithGlobalProgram(b.end());
         }
 
-        RenderSystem.lineWidth(low ? 1f : 2f);
+        RenderSystem.lineWidth(BLOCK_OVERLAY.enabled ? Math.max(low ? 1f : 2f, VisualSettings.blockThickness) : (low ? 1f : 2f));
         boolean hasLines = !TRACER_LIST.isEmpty();
         for (Target t : TARGETS) if (t.outline != 0) { hasLines = true; break; }
         if (hasLines) {
@@ -227,18 +237,53 @@ public final class WorldVisuals {
         }
 
         if (path != null && path.size() >= 2) {
-            int col = RenderUtil.rainbow(0, 0.5f);
-            BufferBuilder b = RenderUtil.lines();
+            // Custom trajectory: soft underglow, animated gradient, dotted guide and a ring at impact.
+            int segments = path.size() - 1;
+            RenderSystem.lineWidth(TrajectorySettings.thickness + (TrajectorySettings.endpointGlow && !low ? 2f : 0f));
+            BufferBuilder glow = RenderUtil.lines();
             for (int k = 1; k < path.size(); k++) {
                 Vec3d a = path.get(k - 1), d = path.get(k);
-                RenderUtil.line(b, m, a.x - cp.x, a.y - cp.y, a.z - cp.z, d.x - cp.x, d.y - cp.y, d.z - cp.z, col);
+                int col = trajectoryColor(k, segments, true);
+                RenderUtil.line(glow, m, a.x-cp.x, a.y-cp.y, a.z-cp.z, d.x-cp.x, d.y-cp.y, d.z-cp.z, col);
             }
-            BufferRenderer.drawWithGlobalProgram(b.end());
+            BufferRenderer.drawWithGlobalProgram(glow.end());
+            RenderSystem.lineWidth(TrajectorySettings.thickness);
+            BufferBuilder line = RenderUtil.lines();
+            for (int k = 1; k < path.size(); k++) {
+                Vec3d a = path.get(k - 1), d = path.get(k);
+                RenderUtil.line(line, m, a.x-cp.x, a.y-cp.y, a.z-cp.z, d.x-cp.x, d.y-cp.y, d.z-cp.z,
+                        trajectoryColor(k, segments, false));
+            }
+            BufferRenderer.drawWithGlobalProgram(line.end());
 
+            if (TrajectorySettings.dots && !low) {
+                BufferBuilder dots = RenderUtil.quads();
+                for (int k = 3; k < path.size() - 1; k += 4) {
+                    Vec3d q = path.get(k).subtract(cp);
+                    double r = 0.025 + TrajectorySettings.thickness * 0.004;
+                    RenderUtil.addFill(dots, m, new Box(q.x-r,q.y-r,q.z-r,q.x+r,q.y+r,q.z+r), trajectoryColor(k, segments, false));
+                }
+                BufferRenderer.drawWithGlobalProgram(dots.end());
+            }
             Vec3d end = path.get(path.size() - 1).subtract(cp);
-            Box mark = new Box(end.x - 0.2, end.y - 0.2, end.z - 0.2, end.x + 0.2, end.y + 0.2, end.z + 0.2);
-            if (!low) RenderUtil.fillBox(m, mark, RenderUtil.alpha(col, 0x60));
-            RenderUtil.outlineBox(m, mark, col);
+            int endColor = trajectoryColor(segments, segments, false);
+            if (TrajectorySettings.impactMarker) {
+                double radius = 0.14;
+                int ringSegments = low ? 12 : 22;
+                BufferBuilder ring = RenderUtil.lines();
+                for (int k = 0; k < ringSegments; k++) {
+                    double a1 = Math.PI * 2 * k / ringSegments;
+                    double a2 = Math.PI * 2 * (k + 1) / ringSegments;
+                    RenderUtil.line(ring, m, end.x + Math.cos(a1)*radius, end.y + 0.015, end.z + Math.sin(a1)*radius,
+                            end.x + Math.cos(a2)*radius, end.y + 0.015, end.z + Math.sin(a2)*radius, endColor);
+                }
+                BufferRenderer.drawWithGlobalProgram(ring.end());
+                if (!low && TrajectorySettings.endpointGlow) {
+                    double r = 0.055;
+                    RenderUtil.fillBox(m, new Box(end.x-r,end.y-r,end.z-r,end.x+r,end.y+r,end.z+r), RenderUtil.alpha(endColor, 0x70));
+                }
+            }
+            RenderSystem.lineWidth(1f);
         }
 
         if (drawTargetMarker) drawTargetMarker(m, cp, td);
@@ -325,6 +370,26 @@ public final class WorldVisuals {
         BufferRenderer.drawWithGlobalProgram(b.end());
     }
 
+    private static int trajectoryColor(int step, int total, boolean glow) {
+        int base = switch (TrajectorySettings.color) {
+            case 1 -> 0xFF45E8FF;
+            case 2 -> 0xFFFF6CB8;
+            case 3 -> 0xFF72F5A5;
+            default -> 0xFF9D7BFF;
+        };
+        int other = switch (TrajectorySettings.color) {
+            case 1 -> 0xFF8CFBFF;
+            case 2 -> 0xFFFFC0E0;
+            case 3 -> 0xFFD5FF82;
+            default -> 0xFF43E7FF;
+        };
+        int c;
+        if (TrajectorySettings.style == 1) c = RenderUtil.rainbow(step * 9, 0.72f);
+        else if (TrajectorySettings.style == 2) c = base;
+        else c = RenderUtil.mix(base, other, total <= 0 ? 1 : (double) step / total);
+        return glow ? RenderUtil.alpha(c, Perf.lite() ? 0x50 : 0x65) : c;
+    }
+
     private static List<Vec3d> predict(MinecraftClient mc, int maxSteps) {
         PlayerEntity p = mc.player;
         ItemStack st = p.getMainHandStack();
@@ -332,16 +397,26 @@ public final class WorldVisuals {
         double speed, grav;
 
         if (it == Items.BOW) {
-            if (!p.isUsingItem()) return null;
+            if (!TrajectorySettings.arrows || !p.isUsingItem()) return null;
             float pull = BowItem.getPullProgress(p.getItemUseTime());
             if (pull < 0.1f) return null;
             speed = pull * 3.0;
             grav = 0.05;
-        } else if (it == Items.ENDER_PEARL || it == Items.SNOWBALL || it == Items.EGG) {
+        } else if (it == Items.CROSSBOW) {
+            if (!TrajectorySettings.arrows || !CrossbowItem.isCharged(st)) return null;
+            speed = 3.15;
+            grav = 0.05;
+        } else if (it == Items.ENDER_PEARL) {
+            if (!TrajectorySettings.pearls) return null;
+            speed = 1.5; grav = 0.03;
+        } else if (it == Items.SNOWBALL || it == Items.EGG) {
+            if (!TrajectorySettings.snowballsEggs) return null;
             speed = 1.5; grav = 0.03;
         } else if (it == Items.EXPERIENCE_BOTTLE) {
+            if (!TrajectorySettings.potions) return null;
             speed = 0.7; grav = 0.07;
         } else if (it == Items.SPLASH_POTION || it == Items.LINGERING_POTION) {
+            if (!TrajectorySettings.potions) return null;
             speed = 0.5; grav = 0.05;
         } else return null;
 
