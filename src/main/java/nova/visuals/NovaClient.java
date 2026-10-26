@@ -18,6 +18,8 @@ import org.lwjgl.glfw.GLFW;
 
 public class NovaClient implements ClientModInitializer {
     public static KeyBinding openGui;
+    /** Set each client tick; consumed by the GameRenderer mixin while the zoom key is held. */
+    public static volatile boolean zoomActive;
     private static final java.util.Map<Module, Boolean> KEY_WAS_DOWN = new java.util.HashMap<>();
 
     // перетаскивание виджетов в чате
@@ -40,7 +42,7 @@ public class NovaClient implements ClientModInitializer {
         try { Config.load(); } catch (Throwable ignored) {}
 
         openGui = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "Nova GUI", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, "Nova"));
+                "Меню Nova Visuals", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, "Nova Visuals"));
 
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
             try {
@@ -59,6 +61,8 @@ public class NovaClient implements ClientModInitializer {
             } else {
                 KEY_WAS_DOWN.replaceAll((m, down) -> false);
             }
+
+            zoomActive = Modules.ZOOM.enabled && mc.currentScreen == null && isKeyDown(Modules.ZOOM.keyCode);
 
             for (Module m : Modules.ALL) {
                 if (!m.enabled) continue;
