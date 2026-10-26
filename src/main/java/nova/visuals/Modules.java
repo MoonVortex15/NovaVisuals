@@ -100,11 +100,8 @@ public final class Modules {
     });
 
     public static final Module BLOCK_OVERLAY = add(new Module("BlockOverlay", WORLD, false));
-    public static final Module TIME_CHANGER = add(new Module("TimeChanger", WORLD, false) {
-        @Override public void onTick(MinecraftClient mc) {
-            if (mc.world != null) mc.world.setTimeOfDay(VisualSettings.timeOfDay());
-        }
-    });
+    // Time is overridden locally by WorldTimeMixin; never mutate the server world.
+    public static final Module TIME_CHANGER = add(new Module("TimeChanger", WORLD, false));
 
     static {
         ZOOM.keyCode = GLFW.GLFW_KEY_C;
