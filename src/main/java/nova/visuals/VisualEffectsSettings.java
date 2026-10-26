@@ -23,6 +23,8 @@ public final class VisualEffectsSettings {
     public static int handRotZ = 0;
     /** 0 vanilla swing, 1 suppress item swing. */
     public static int handAnimation = 0;
+    /** Multiplier for the first-person item swing progress. */
+    public static float handAnimationSpeed = 1.0f;
 
     static void load(Properties p) {
         hitStyle = clamp(i(p, "effects.hitStyle", 0), 0, 3);
@@ -38,10 +40,11 @@ public final class VisualEffectsSettings {
         handY = clamp(f(p, "customHand.y", 0), -0.6f, 0.6f);
         handZ = clamp(f(p, "customHand.z", 0), -0.6f, 0.6f);
         handScale = clamp(f(p, "customHand.scale", 1), 0.5f, 1.5f);
-        handRotX = clamp(i(p, "customHand.rotX", 0), -45, 45);
-        handRotY = clamp(i(p, "customHand.rotY", 0), -45, 45);
-        handRotZ = clamp(i(p, "customHand.rotZ", 0), -45, 45);
+        handRotX = clamp(i(p, "customHand.rotX", 0), -180, 180);
+        handRotY = clamp(i(p, "customHand.rotY", 0), -180, 180);
+        handRotZ = clamp(i(p, "customHand.rotZ", 0), -180, 180);
         handAnimation = clamp(i(p, "customHand.animation", 0), 0, 1);
+        handAnimationSpeed = clamp(f(p, "customHand.animationSpeed", 1.0f), 0.25f, 3.0f);
     }
     static void save(Properties p) {
         p.setProperty("effects.hitStyle", "" + hitStyle);
@@ -61,6 +64,7 @@ public final class VisualEffectsSettings {
         p.setProperty("customHand.rotY", "" + handRotY);
         p.setProperty("customHand.rotZ", "" + handRotZ);
         p.setProperty("customHand.animation", "" + handAnimation);
+        p.setProperty("customHand.animationSpeed", "" + handAnimationSpeed);
     }
     private static int i(Properties p, String k, int d) { try { return Integer.parseInt(p.getProperty(k, "" + d)); } catch (Exception e) { return d; } }
     private static float f(Properties p, String k, float d) { try { return Float.parseFloat(p.getProperty(k, "" + d)); } catch (Exception e) { return d; } }
