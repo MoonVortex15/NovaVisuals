@@ -17,7 +17,7 @@ public class ModuleScreen extends Screen {
     private static final String[] TAB_HINTS = {
             "Подсветка и эффекты мира", "Визуальные помощники боя", "Элементы интерфейса", "Настройки окружения"
     };
-    private static final int CARD_H = 48, GAP_Y = 8, GAP_X = 9;
+    private static final int CARD_H = 42, GAP_Y = 6, GAP_X = 7;
 
     private int tab;
     private String search = "";
@@ -33,20 +33,20 @@ public class ModuleScreen extends Screen {
     public ModuleScreen() { super(Text.literal(Brand.NAME)); }
 
     private void layout() {
-        pw = Math.max(280, Math.min(width - 24, 720));
-        ph = Math.max(210, Math.min(height - 24, 400));
+        pw = Math.max(260, Math.min(width - 18, 610));
+        ph = Math.max(190, Math.min(height - 18, 340));
         px = (width - pw) / 2;
         py = (height - ph) / 2;
         sidebarW = Math.min(128, Math.max(88, pw / 5));
-        areaX = px + sidebarW + 20;
-        areaY = py + 78;
-        areaW = pw - sidebarW - 38;
-        areaH = ph - 108;
+        areaX = px + sidebarW + 15;
+        areaY = py + 68;
+        areaW = pw - sidebarW - 28;
+        areaH = ph - 91;
         colW = Math.max(90, (areaW - GAP_X) / 2);
-        sw = Math.min(166, Math.max(95, areaW / 2));
+        sw = Math.min(145, Math.max(88, areaW / 2));
         sx = px + pw - 18 - sw;
         sy = py + 18;
-        for (int i = 0; i < TABS.length; i++) tabY[i] = py + 76 + i * 34;
+        for (int i = 0; i < TABS.length; i++) tabY[i] = py + 68 + i * 30;
     }
 
     private List<Module> visible() {
