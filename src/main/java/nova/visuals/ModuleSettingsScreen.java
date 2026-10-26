@@ -20,7 +20,14 @@ public final class ModuleSettingsScreen extends Screen {
 
     private void layout() {
         pw = Math.min(330, Math.max(250, width - 16));
-        int wanted = module == Modules.TRAJECTORIES ? 365 : module == Modules.TARGET_INDICATOR ? 252 : module == Modules.BLOCK_OVERLAY ? 250 : module == Modules.TIME_CHANGER ? 230 : 190;
+        int wanted = module == Modules.TRAJECTORIES ? 365
+                : module == Modules.TARGET_INDICATOR ? 252
+                : module == Modules.CUSTOM_HAND ? 350
+                : (module == Modules.HIT_PARTICLES || module == Modules.DAMAGE_PARTICLES
+                    || module == Modules.CRITICAL_EFFECTS || module == Modules.KILL_EFFECTS) ? 255
+                : module == Modules.TRAILS ? 235
+                : module == Modules.BLOCK_OVERLAY ? 250
+                : module == Modules.TIME_CHANGER ? 230 : 190;
         ph = Math.min(wanted, Math.max(220, height - 12));
         px = (width - pw) / 2;
         py = (height - ph) / 2;
@@ -60,6 +67,35 @@ public final class ModuleSettingsScreen extends Screen {
             row(ctx, mx, my, 10, "Точки на линии", onOff(TrajectorySettings.dots), TrajectorySettings.dots);
             row(ctx, mx, my, 11, "Маркер попадания", onOff(TrajectorySettings.impactMarker), TrajectorySettings.impactMarker);
             row(ctx, mx, my, 12, "Свечение конца", onOff(TrajectorySettings.endpointGlow), TrajectorySettings.endpointGlow);
+        }
+        if (module == Modules.HIT_PARTICLES) {
+            row(ctx, mx, my, 3, "Тип частиц", particleStyle(VisualEffectsSettings.hitStyle), false);
+            row(ctx, mx, my, 4, "Количество", "" + VisualEffectsSettings.hitCount, false);
+        }
+        if (module == Modules.DAMAGE_PARTICLES) {
+            row(ctx, mx, my, 3, "Количество", "" + VisualEffectsSettings.damageCount, false);
+        }
+        if (module == Modules.CRITICAL_EFFECTS) {
+            row(ctx, mx, my, 3, "Тип частиц", particleStyle(VisualEffectsSettings.criticalStyle), false);
+            row(ctx, mx, my, 4, "Количество", "" + VisualEffectsSettings.criticalCount, false);
+        }
+        if (module == Modules.KILL_EFFECTS) {
+            row(ctx, mx, my, 3, "Тип эффекта", particleStyle(VisualEffectsSettings.killStyle), false);
+            row(ctx, mx, my, 4, "Количество", "" + VisualEffectsSettings.killCount, false);
+        }
+        if (module == Modules.TRAILS) {
+            row(ctx, mx, my, 3, "Стиль следа", trailStyle(), false);
+            row(ctx, mx, my, 4, "Плотность", "" + VisualEffectsSettings.trailDensity, false);
+        }
+        if (module == Modules.CUSTOM_HAND) {
+            row(ctx, mx, my, 3, "Положение X", String.format(java.util.Locale.ROOT, "%.2f", VisualEffectsSettings.handX), false);
+            row(ctx, mx, my, 4, "Положение Y", String.format(java.util.Locale.ROOT, "%.2f", VisualEffectsSettings.handY), false);
+            row(ctx, mx, my, 5, "Положение Z", String.format(java.util.Locale.ROOT, "%.2f", VisualEffectsSettings.handZ), false);
+            row(ctx, mx, my, 6, "Размер предмета", String.format(java.util.Locale.ROOT, "%.1fx", VisualEffectsSettings.handScale), false);
+            row(ctx, mx, my, 7, "Поворот X", VisualEffectsSettings.handRotX + "°", false);
+            row(ctx, mx, my, 8, "Поворот Y", VisualEffectsSettings.handRotY + "°", false);
+            row(ctx, mx, my, 9, "Поворот Z", VisualEffectsSettings.handRotZ + "°", false);
+            row(ctx, mx, my, 10, "Анимация взмаха", VisualEffectsSettings.handAnimation == 1 ? "ВЫКЛ" : "ОБЫЧНАЯ", false);
         }
         if (module == Modules.BLOCK_OVERLAY) {
             row(ctx, mx, my, 3, "Цвет контура", new String[]{"Фиолетовый", "Циан", "Розовый", "Мятный"}[VisualSettings.blockColor], false);
@@ -123,6 +159,43 @@ public final class ModuleSettingsScreen extends Screen {
                 default -> { return super.mouseClicked(mx, my, button); }
             }
             Config.save();
+        } else if (module == Modules.HIT_PARTICLES) {
+            if (index == 3) VisualEffectsSettings.hitStyle = (VisualEffectsSettings.hitStyle + 1) % 4;
+            else if (index == 4) VisualEffectsSettings.hitCount = VisualEffectsSettings.hitCount >= 24 ? 3 : VisualEffectsSettings.hitCount + 3;
+            else return super.mouseClicked(mx, my, button);
+            Config.save();
+        } else if (module == Modules.DAMAGE_PARTICLES) {
+            if (index != 3) return super.mouseClicked(mx, my, button);
+            VisualEffectsSettings.damageCount = VisualEffectsSettings.damageCount >= 16 ? 1 : VisualEffectsSettings.damageCount + 1;
+            Config.save();
+        } else if (module == Modules.CRITICAL_EFFECTS) {
+            if (index == 3) VisualEffectsSettings.criticalStyle = (VisualEffectsSettings.criticalStyle + 1) % 4;
+            else if (index == 4) VisualEffectsSettings.criticalCount = VisualEffectsSettings.criticalCount >= 28 ? 3 : VisualEffectsSettings.criticalCount + 3;
+            else return super.mouseClicked(mx, my, button);
+            Config.save();
+        } else if (module == Modules.KILL_EFFECTS) {
+            if (index == 3) VisualEffectsSettings.killStyle = (VisualEffectsSettings.killStyle + 1) % 4;
+            else if (index == 4) VisualEffectsSettings.killCount = VisualEffectsSettings.killCount >= 40 ? 6 : VisualEffectsSettings.killCount + 4;
+            else return super.mouseClicked(mx, my, button);
+            Config.save();
+        } else if (module == Modules.TRAILS) {
+            if (index == 3) VisualEffectsSettings.trailStyle = (VisualEffectsSettings.trailStyle + 1) % 4;
+            else if (index == 4) VisualEffectsSettings.trailDensity = VisualEffectsSettings.trailDensity >= 4 ? 1 : VisualEffectsSettings.trailDensity + 1;
+            else return super.mouseClicked(mx, my, button);
+            Config.save();
+        } else if (module == Modules.CUSTOM_HAND) {
+            switch (index) {
+                case 3 -> VisualEffectsSettings.handX = stepFloat(VisualEffectsSettings.handX, -0.6f, 0.6f, 0.05f);
+                case 4 -> VisualEffectsSettings.handY = stepFloat(VisualEffectsSettings.handY, -0.6f, 0.6f, 0.05f);
+                case 5 -> VisualEffectsSettings.handZ = stepFloat(VisualEffectsSettings.handZ, -0.6f, 0.6f, 0.05f);
+                case 6 -> VisualEffectsSettings.handScale = VisualEffectsSettings.handScale >= 1.5f ? 0.5f : Math.min(1.5f, VisualEffectsSettings.handScale + 0.1f);
+                case 7 -> VisualEffectsSettings.handRotX = stepAngle(VisualEffectsSettings.handRotX);
+                case 8 -> VisualEffectsSettings.handRotY = stepAngle(VisualEffectsSettings.handRotY);
+                case 9 -> VisualEffectsSettings.handRotZ = stepAngle(VisualEffectsSettings.handRotZ);
+                case 10 -> VisualEffectsSettings.handAnimation = 1 - VisualEffectsSettings.handAnimation;
+                default -> { return super.mouseClicked(mx, my, button); }
+            }
+            Config.save();
         } else if (module == Modules.BLOCK_OVERLAY) {
             if (index == 3) VisualSettings.blockColor = (VisualSettings.blockColor + 1) % 4;
             else if (index == 4) VisualSettings.blockThickness = VisualSettings.blockThickness >= 4 ? 1 : VisualSettings.blockThickness + 1;
@@ -158,6 +231,17 @@ public final class ModuleSettingsScreen extends Screen {
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
+
+    private String particleStyle(int style) {
+        return new String[]{"Критические", "Зачарованные", "Светящиеся", "Душевное пламя"}[style];
+    }
+    private String trailStyle() {
+        return new String[]{"Светящиеся", "Душевное пламя", "Портал", "Облако"}[VisualEffectsSettings.trailStyle];
+    }
+    private float stepFloat(float value, float min, float max, float step) {
+        return value >= max ? min : Math.min(max, Math.round((value + step) * 100f) / 100f);
+    }
+    private int stepAngle(int value) { return value >= 45 ? -45 : value + 5; }
 
     private String onOff(boolean value) { return value ? "ВКЛ" : "ВЫКЛ"; }
 
