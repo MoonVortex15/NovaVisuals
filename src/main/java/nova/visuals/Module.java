@@ -30,6 +30,11 @@ public class Module {
             case "Hitboxes" -> "Контуры хитбоксов";
             case "Fullbright" -> "Полная яркость";
             case "Trajectories" -> "Траектория снарядов";
+            case "HitParticles" -> "Частицы попадания";
+            case "DamageParticles" -> "Частицы урона";
+            case "CriticalEffects" -> "Эффект критического удара";
+            case "KillEffects" -> "Эффект добивания";
+            case "Trails" -> "След за игроком";
             case "TargetIndicator" -> "Маркер цели";
             case "NoHurtCam" -> "Без тряски камеры";
             case "Zoom (C)" -> "Зум";
@@ -63,6 +68,11 @@ public class Module {
             case "Hitboxes" -> "Показывает технические границы сущностей.";
             case "Fullbright" -> "Делает тёмные места заметно светлее.";
             case "Trajectories" -> "Показывает примерную траекторию снаряда в руке.";
+            case "HitParticles" -> "Создаёт визуальный всплеск частиц при ударе по цели.";
+            case "DamageParticles" -> "Показывает частицы урона при попадании.";
+            case "CriticalEffects" -> "Добавляет отдельный эффект частиц при критическом ударе.";
+            case "KillEffects" -> "Создаёт всплеск частиц, когда последняя атакованная цель погибает.";
+            case "Trails" -> "Оставляет лёгкий след частиц во время движения.";
             case "TargetIndicator" -> "Временно рисует 3D-маркер после удара по цели.";
             case "NoHurtCam" -> "Убирает визуальную тряску при получении урона.";
             case "Zoom (C)" -> "Удерживай назначенную клавишу для приближения.";
