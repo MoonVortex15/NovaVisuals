@@ -69,32 +69,7 @@ public final class Modules {
         }
     });
 
-    public static final Module ZOOM = add(new Module("Zoom (C)", PVP, true) {
-        private boolean zooming;
-        private int prevFov;
-        private double prevSens;
-
-        @Override public void onTick(MinecraftClient mc) {
-            boolean want = NovaClient.isKeyDown(keyCode) && mc.currentScreen == null;
-            if (want && !zooming) {
-                prevFov = mc.options.getFov().getValue();
-                prevSens = mc.options.getMouseSensitivity().getValue();
-                mc.options.getFov().setValue(30);
-                mc.options.getMouseSensitivity().setValue(prevSens * 0.35);
-                zooming = true;
-            } else if (!want && zooming) {
-                restore(mc);
-            }
-        }
-        @Override public void onDisable() { restore(MinecraftClient.getInstance()); }
-
-        private void restore(MinecraftClient mc) {
-            if (!zooming) return;
-            mc.options.getFov().setValue(prevFov);
-            mc.options.getMouseSensitivity().setValue(prevSens);
-            zooming = false;
-        }
-    });
+    public static final Module ZOOM = add(new Module("Zoom (C)", PVP, true));
 
     // ---------- HUD (все элементы можно перетаскивать мышкой при открытом чате) ----------
     public static final Module WATERMARK   = add(new Module("Watermark", HUD_CAT(), true));
