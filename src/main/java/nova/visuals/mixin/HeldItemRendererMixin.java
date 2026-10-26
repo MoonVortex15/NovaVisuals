@@ -35,8 +35,10 @@ public abstract class HeldItemRendererMixin {
 
     @ModifyVariable(method = "renderFirstPersonItem", at = @At("HEAD"), argsOnly = true, ordinal = 2)
     private float novavisuals$customSwing(float swingProgress) {
-        if (Modules.CUSTOM_HAND.enabled && VisualEffectsSettings.handAnimation == 1) return 0.0f;
-        return swingProgress;
+        if (!Modules.CUSTOM_HAND.enabled) return swingProgress;
+        if (VisualEffectsSettings.handAnimation == 1) return 0.0f;
+        // Clamp the multiplied progress so the renderer never receives out-of-range values.
+        return Math.max(0.0f, Math.min(1.0f, swingProgress * VisualEffectsSettings.handAnimationSpeed));
     }
 
     @Inject(method = "renderFirstPersonItem", at = @At("RETURN"))
