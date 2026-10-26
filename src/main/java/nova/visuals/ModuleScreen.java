@@ -11,9 +11,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/** Pulse-inspired ClickGUI: dark glass panel, violet accents, sidebar and animated cards. */
 public class ModuleScreen extends Screen {
     private static final String[] TABS = {"Визуалы", "Бой", "HUD", "Мир"};
-    private static final int CARD_H = 43, GAP_Y = 7, GAP_X = 10;
+    private static final String[] TAB_HINTS = {
+            "Подсветка и эффекты мира", "Визуальные помощники боя", "Элементы интерфейса", "Настройки окружения"
+    };
+    private static final int CARD_H = 48, GAP_Y = 8, GAP_X = 9;
 
     private int tab;
     private String search = "";
@@ -21,41 +25,41 @@ public class ModuleScreen extends Screen {
     private float scroll, maxScroll;
     private final Map<Module, Float> anim = new HashMap<>();
 
-    // раскладка
-    private int px, py, pw, ph;
+    private int px, py, pw, ph, sidebarW;
     private int areaX, areaY, areaW, areaH, colW;
     private int sx, sy, sw;
-    private final int[] tabX = new int[TABS.length];
-    private final int[] tabW = new int[TABS.length];
+    private final int[] tabY = new int[TABS.length];
 
     public ModuleScreen() { super(Text.literal(Brand.NAME)); }
 
     private void layout() {
-        pw = Math.max(300, Math.min(width - 30, 640));
-        ph = Math.max(200, Math.min(height - 30, 340));
+        pw = Math.max(280, Math.min(width - 24, 720));
+        ph = Math.max(210, Math.min(height - 24, 400));
         px = (width - pw) / 2;
         py = (height - ph) / 2;
-        areaX = px + 22;
-        areaY = py + 50;
-        areaW = pw - 44;
-        areaH = ph - 50 - 24;
-        colW = (areaW - GAP_X) / 2;
-        sw = Math.min(170, pw / 3);
-        sx = px + pw - 22 - sw;
-        sy = py + 13;
+        sidebarW = Math.min(128, Math.max(88, pw / 5));
+        areaX = px + sidebarW + 20;
+        areaY = py + 78;
+        areaW = pw - sidebarW - 38;
+        areaH = ph - 108;
+        colW = Math.max(90, (areaW - GAP_X) / 2);
+        sw = Math.min(166, Math.max(95, areaW / 2));
+        sx = px + pw - 18 - sw;
+        sy = py + 18;
+        for (int i = 0; i < TABS.length; i++) tabY[i] = py + 76 + i * 34;
     }
 
     private List<Module> visible() {
-        List<Module> l = new ArrayList<>();
+        List<Module> result = new ArrayList<>();
         String q = search.toLowerCase(java.util.Locale.ROOT);
         for (Module m : Modules.ALL) {
             if (!q.isEmpty()) {
-                if (m.name.toLowerCase(java.util.Locale.ROOT).contains(q) || m.displayName().toLowerCase(java.util.Locale.ROOT).contains(q) || m.description().toLowerCase(java.util.Locale.ROOT).contains(q)) l.add(m);
-            } else if (m.category.ordinal() == tab) {
-                l.add(m);
-            }
+                if (m.name.toLowerCase(java.util.Locale.ROOT).contains(q)
+                        || m.displayName().toLowerCase(java.util.Locale.ROOT).contains(q)
+                        || m.description().toLowerCase(java.util.Locale.ROOT).contains(q)) result.add(m);
+            } else if (m.category.ordinal() == tab) result.add(m);
         }
-        return l;
+        return result;
     }
 
     private int cardX(int i) { return areaX + (i % 2) * (colW + GAP_X); }
@@ -68,7 +72,6 @@ public class ModuleScreen extends Screen {
         scroll = MathHelper.clamp(scroll, 0, maxScroll);
     }
 
-    // ------------------------------------------------------------------ render
     @Override
     public void render(DrawContext ctx, int mx, int my, float delta) {
         super.render(ctx, mx, my, delta);
@@ -76,110 +79,117 @@ public class ModuleScreen extends Screen {
         List<Module> list = visible();
         updateScroll(list.size());
 
-        ctx.fill(0, 0, width, height, 0x55000000);
+        ctx.fill(0, 0, width, height, 0x72060810);
+        // Main glass-like panel and separate sidebar.
+        Ui.roundRect(ctx, px - 1, py - 1, pw + 2, ph + 2, 17, 0x286F62E8);
+        Ui.roundRect(ctx, px, py, pw, ph, 16, 0xF20D0E16);
+        Ui.roundRect(ctx, px + 1, py + 1, sidebarW + 8, ph - 2, 15, 0xFF11121D);
+        Ui.roundRect(ctx, px + sidebarW + 8, py + 12, 1, ph - 24, 1, 0x20FFFFFF);
 
-        // окно
-        Ui.roundRect(ctx, px - 1, py - 1, pw + 2, ph + 2, 17, 0x30FFFFFF);
-        Ui.roundRect(ctx, px, py, pw, ph, 16, 0xF2101018);
-        Ui.roundRect(ctx, px + 1, py + 1, pw - 2, 30, 15, 0x14786BFF);   // лёгкий фиолетовый отсвет сверху
+        // Brand block.
+        Ui.roundRect(ctx, px + 15, py + 17, 27, 27, 8, 0xFF7060E8);
+        ctx.drawText(textRenderer, "N", px + 24, py + 26, 0xFFFFFFFF, true);
+        ctx.drawText(textRenderer, Brand.NAME, px + 49, py + 20, 0xFFFFFFFF, true);
+        ctx.drawText(textRenderer, Brand.SUBTITLE + " " + Brand.VERSION, px + 49, py + 32, 0xFF77788F, false);
+        ctx.fill(px + 15, py + 57, px + sidebarW - 7, py + 58, 0x20FFFFFF);
 
-        // вкладки
-        float ts = 1.3f;
-        int x = px + 26;
+        // Sidebar navigation.
         for (int i = 0; i < TABS.length; i++) {
-            boolean sel = i == tab && search.isEmpty();
-            int col = sel ? 0xFFFFFFFF : 0xFF55556A;
-            tabX[i] = x;
-            tabW[i] = (int) (textRenderer.getWidth(TABS[i]) * ts);
-            ctx.getMatrices().push();
-            ctx.getMatrices().scale(ts, ts, 1f);
-            ctx.drawText(textRenderer, TABS[i], (int) (x / ts), (int) ((py + 16) / ts), col, false);
-            ctx.getMatrices().pop();
-            x += tabW[i] + 9;
-            if (i < TABS.length - 1) {
-                ctx.drawText(textRenderer, "/", x, py + 18, 0xFF3A3A4C, false);
-                x += textRenderer.getWidth("/") + 9;
+            int ty = tabY[i];
+            boolean selected = i == tab && search.isEmpty();
+            boolean hover = mx >= px + 10 && mx <= px + sidebarW + 1 && my >= ty - 5 && my <= ty + 23;
+            if (selected) {
+                Ui.roundRect(ctx, px + 10, ty - 5, sidebarW - 18, 28, 8, 0xFF292443);
+                Ui.roundRect(ctx, px + 10, ty + 2, 3, 14, 2, 0xFF9B8AFF);
+            } else if (hover) {
+                Ui.roundRect(ctx, px + 10, ty - 5, sidebarW - 18, 28, 8, 0xFF1A1B29);
             }
+            int dot = selected ? 0xFFB6AAFF : 0xFF65667B;
+            Ui.circle(ctx, px + 23, ty + 5, 7, selected ? 0xFF6655C8 : 0xFF252637);
+            Ui.circle(ctx, px + 23, ty + 5, 3, dot);
+            ctx.drawText(textRenderer, TABS[i], px + 36, ty + 1,
+                    selected ? 0xFFFFFFFF : 0xFF9293A8, false);
         }
+        ctx.drawText(textRenderer, "RIGHT SHIFT", px + 15, py + ph - 31, 0xFF5D5F75, false);
+        ctx.drawText(textRenderer, "закрыть меню", px + 15, py + ph - 20, 0xFF5D5F75, false);
 
-        // поиск
-        Ui.roundRect(ctx, sx - 1, sy - 1, sw + 2, 20, 10, searchFocus ? RenderUtil.alpha(RenderUtil.gradient(0), 0xAA) : 0x22FFFFFF);
-        Ui.roundRect(ctx, sx, sy, sw, 18, 9, searchFocus ? 0xFF1A1A2A : 0xFF13131C);
-        Ui.circle(ctx, sx + 8, sy + 4, 8, 0xFF5C5C70);
-        Ui.circle(ctx, sx + 10, sy + 6, 4, searchFocus ? 0xFF1A1A2A : 0xFF13131C);
-        ctx.fill(sx + 15, sy + 12, sx + 17, sy + 14, 0xFF5C5C70);
-        String shown;
-        int scol;
-        if (search.isEmpty() && !searchFocus) { shown = "Поиск"; scol = 0xFF55556A; }
-        else { shown = search + (searchFocus && (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : ""); scol = 0xFFFFFFFF; }
-        ctx.drawText(textRenderer, textRenderer.trimToWidth(shown, sw - 30), sx + 24, sy + 5, scol, false);
+        // Main heading and category count.
+        String heading = search.isEmpty() ? TABS[tab] : "Поиск функций";
+        ctx.drawText(textRenderer, heading, areaX, py + 19, 0xFFFFFFFF, true);
+        String hint = search.isEmpty() ? TAB_HINTS[tab] : "Найдено: " + list.size();
+        ctx.drawText(textRenderer, textRenderer.trimToWidth(hint, Math.max(50, sx - areaX - 12)), areaX, py + 34, 0xFF77788F, false);
 
-        ctx.fill(px + 22, py + 40, px + pw - 22, py + 41, 0x18FFFFFF);
+        // Search field.
+        Ui.roundRect(ctx, sx - 1, sy - 1, sw + 2, 22, 8, searchFocus ? 0xFF7767E8 : 0xFF272838);
+        Ui.roundRect(ctx, sx, sy, sw, 20, 7, 0xFF171822);
+        Ui.circle(ctx, sx + 10, sy + 6, 7, 0xFF77788F);
+        Ui.circle(ctx, sx + 10, sy + 6, 4, 0xFF171822);
+        ctx.fill(sx + 15, sy + 12, sx + 18, sy + 14, 0xFF77788F);
+        String shown = search.isEmpty() && !searchFocus ? "Поиск..." : search + (searchFocus && (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "");
+        ctx.drawText(textRenderer, textRenderer.trimToWidth(shown, sw - 30), sx + 24, sy + 6,
+                search.isEmpty() && !searchFocus ? 0xFF66677D : 0xFFFFFFFF, false);
+        ctx.fill(areaX, py + 61, px + pw - 17, py + 62, 0x20FFFFFF);
 
-        // карточки
-        ctx.enableScissor(areaX - 2, areaY, areaX + areaW + 2, areaY + areaH);
+        // Feature cards.
+        ctx.enableScissor(areaX - 1, areaY, px + pw - 13, areaY + areaH);
         for (int i = 0; i < list.size(); i++) {
             Module m = list.get(i);
             int cx = cardX(i), cy = cardY(i);
             if (cy + CARD_H < areaY || cy > areaY + areaH) continue;
-
             float a = anim.getOrDefault(m, m.enabled ? 1f : 0f);
-            a += ((m.enabled ? 1f : 0f) - a) * 0.25f;
+            a += ((m.enabled ? 1f : 0f) - a) * Math.min(1f, delta * 0.8f + 0.12f);
             anim.put(m, a);
-
-            boolean hov = mx >= cx && mx <= cx + colW && my >= cy && my <= cy + CARD_H
+            boolean hover = mx >= cx && mx <= cx + colW && my >= cy && my <= cy + CARD_H
                     && my >= areaY && my <= areaY + areaH;
-            int bg = RenderUtil.mix(0xFF111119, 0xFF1A1A30, a);
-            if (hov) bg = RenderUtil.mix(bg, 0xFF22223C, 0.6);
-            Ui.roundRect(ctx, cx, cy, colW, CARD_H, 12, bg);
+            int bg = RenderUtil.mix(0xFF151620, 0xFF211E39, a);
+            if (hover) bg = RenderUtil.mix(bg, 0xFF292640, 0.65);
+            Ui.roundRect(ctx, cx, cy, colW, CARD_H, 10, bg);
+            if (a > 0.02f) Ui.roundRect(ctx, cx, cy + 8, 2, CARD_H - 16, 1, RenderUtil.alpha(0xFF9D8BFF, (int)(a * 220)));
 
-            int nameCol = RenderUtil.mix(0xFF5C5C70, 0xFFFFFFFF, a);
-            ctx.drawText(textRenderer, textRenderer.trimToWidth(m.displayName(), colW - 58), cx + 12, cy + 7, nameCol, false);
-            ctx.drawText(textRenderer, textRenderer.trimToWidth(m.description(), colW - 22), cx + 12, cy + 23, 0xFF8D8DA5, false);
-
-            int tw = 26, th = 14;
-            int tx = cx + colW - 14 - tw, ty = cy + (CARD_H - th) / 2;
-            Ui.roundRect(ctx, tx, ty, tw, th, 7, RenderUtil.mix(0xFF2B2B3B, 0xFF6C5CE7, a));
-            int kx = tx + 2 + (int) ((tw - 14) * a);
-            Ui.circle(ctx, kx, ty + 2, 10, RenderUtil.mix(0xFF4B4B5E, 0xFFE6E2FF, a));
+            int toggleW = 27, toggleH = 14;
+            int tx = cx + colW - 10 - toggleW, ty = cy + 9;
+            int textMax = Math.max(30, colW - 52);
+            ctx.drawText(textRenderer, textRenderer.trimToWidth(m.displayName(), textMax), cx + 10, cy + 8,
+                    m.enabled ? 0xFFFFFFFF : 0xFFB4B5C7, false);
+            String desc = textRenderer.trimToWidth(m.description(), Math.max(30, colW - 20));
+            ctx.drawText(textRenderer, desc, cx + 10, cy + 26, 0xFF77798F, false);
+            Ui.roundRect(ctx, tx, ty, toggleW, toggleH, 7, RenderUtil.mix(0xFF343544, 0xFF7664E8, a));
+            int knobX = tx + 2 + (int)((toggleW - 14) * a);
+            Ui.circle(ctx, knobX, ty + 2, 10, RenderUtil.mix(0xFF85869A, 0xFFF1EEFF, a));
         }
         ctx.disableScissor();
 
         if (list.isEmpty()) {
-            String t = "Ничего не найдено";
-            ctx.drawText(textRenderer, t, px + pw / 2 - textRenderer.getWidth(t) / 2, areaY + 30, 0xFF55556A, false);
+            String empty = "Ничего не найдено";
+            ctx.drawText(textRenderer, empty, areaX + Math.max(0, (areaW - textRenderer.getWidth(empty)) / 2), areaY + 24, 0xFF77788F, false);
         }
-
-        // скроллбар
         if (maxScroll > 0) {
-            int bx = px + pw - 13;
+            int bx = px + pw - 9;
             Ui.roundRect(ctx, bx, areaY, 3, areaH, 1, 0x20FFFFFF);
             int contentH = areaH + (int) maxScroll;
-            int thumbH = Math.max(20, areaH * areaH / contentH);
-            int thumbY = areaY + (int) ((areaH - thumbH) * (scroll / maxScroll));
-            Ui.roundRect(ctx, bx, thumbY, 3, thumbH, 1, 0xA0A89CFF);
+            int thumbH = Math.max(18, areaH * areaH / contentH);
+            int thumbY = areaY + (int)((areaH - thumbH) * (scroll / maxScroll));
+            Ui.roundRect(ctx, bx, thumbY, 3, thumbH, 1, 0xFF9B8AFF);
         }
-
-        // подвал
-        ctx.drawText(textRenderer, "ЛКМ — вкл/выкл • ПКМ — настройки • HUD можно двигать в чате", px + 26, py + ph - 17, 0xFF4A4A5E, false);
-        String foot = Brand.NAME + " " + Brand.SUBTITLE + " " + Brand.VERSION;
-        ctx.drawText(textRenderer, foot, px + pw - 26 - textRenderer.getWidth(foot), py + ph - 17, 0xFF6C6C86, false);
+        ctx.drawText(textRenderer, "ЛКМ — переключить   •   ПКМ — настройки", areaX, py + ph - 18, 0xFF66677D, false);
+        String footer = "" + list.size() + " функций";
+        ctx.drawText(textRenderer, footer, px + pw - 18 - textRenderer.getWidth(footer), py + ph - 18, 0xFF77788F, false);
     }
 
-    // ------------------------------------------------------------------ input
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         layout();
         if (button == 0) {
             for (int i = 0; i < TABS.length; i++) {
-                if (mx >= tabX[i] && mx <= tabX[i] + tabW[i] && my >= py + 12 && my <= py + 32) {
+                if (mx >= px + 10 && mx <= px + sidebarW + 1 && my >= tabY[i] - 5 && my <= tabY[i] + 23) {
                     tab = i;
                     scroll = 0;
                     search = "";
+                    searchFocus = false;
                     return true;
                 }
             }
-            boolean inSearch = mx >= sx && mx <= sx + sw && my >= sy && my <= sy + 18;
+            boolean inSearch = mx >= sx && mx <= sx + sw && my >= sy && my <= sy + 20;
             searchFocus = inSearch;
             if (inSearch) return true;
         }
@@ -188,11 +198,8 @@ public class ModuleScreen extends Screen {
             for (int i = 0; i < list.size(); i++) {
                 int cx = cardX(i), cy = cardY(i);
                 if (mx >= cx && mx <= cx + colW && my >= cy && my <= cy + CARD_H) {
-                    if (button == 1) {
-                        client.setScreen(new ModuleSettingsScreen(list.get(i), this));
-                    } else {
-                        list.get(i).toggle();
-                    }
+                    if (button == 1) client.setScreen(new ModuleSettingsScreen(list.get(i), this));
+                    else list.get(i).toggle();
                     return true;
                 }
             }
@@ -202,7 +209,7 @@ public class ModuleScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double horizontal, double vertical) {
-        scroll = MathHelper.clamp(scroll - (float) vertical * 18f, 0, maxScroll);
+        scroll = MathHelper.clamp(scroll - (float) vertical * 20f, 0, maxScroll);
         return true;
     }
 
@@ -218,24 +225,17 @@ public class ModuleScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == GLFW.GLFW_KEY_RIGHT_SHIFT) {
-            close();
-            return true;
-        }
+        if (keyCode == GLFW.GLFW_KEY_RIGHT_SHIFT) { close(); return true; }
         if (searchFocus) {
             if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
                 if (!search.isEmpty()) search = search.substring(0, search.length() - 1);
                 scroll = 0;
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-                searchFocus = false;
-                return true;
-            }
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) { searchFocus = false; return true; }
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    @Override
-    public boolean shouldPause() { return false; }
+    @Override public boolean shouldPause() { return false; }
 }
