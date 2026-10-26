@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.Map;
 
 public class ModuleScreen extends Screen {
-    private static final String[] TABS = {"Visuals", "PvP", "HUD", "World"};
-    private static final int CARD_H = 30, GAP_Y = 8, GAP_X = 10;
+    private static final String[] TABS = {"Визуалы", "Бой", "HUD", "Мир"};
+    private static final int CARD_H = 43, GAP_Y = 7, GAP_X = 10;
 
     private int tab;
     private String search = "";
@@ -47,10 +47,10 @@ public class ModuleScreen extends Screen {
 
     private List<Module> visible() {
         List<Module> l = new ArrayList<>();
-        String q = search.toLowerCase();
+        String q = search.toLowerCase(java.util.Locale.ROOT);
         for (Module m : Modules.ALL) {
             if (!q.isEmpty()) {
-                if (m.name.toLowerCase().contains(q)) l.add(m);
+                if (m.name.toLowerCase(java.util.Locale.ROOT).contains(q) || m.displayName().toLowerCase(java.util.Locale.ROOT).contains(q) || m.description().toLowerCase(java.util.Locale.ROOT).contains(q)) l.add(m);
             } else if (m.category.ordinal() == tab) {
                 l.add(m);
             }
@@ -110,7 +110,7 @@ public class ModuleScreen extends Screen {
         ctx.fill(sx + 15, sy + 12, sx + 17, sy + 14, 0xFF5C5C70);
         String shown;
         int scol;
-        if (search.isEmpty() && !searchFocus) { shown = "Search"; scol = 0xFF55556A; }
+        if (search.isEmpty() && !searchFocus) { shown = "Поиск"; scol = 0xFF55556A; }
         else { shown = search + (searchFocus && (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : ""); scol = 0xFFFFFFFF; }
         ctx.drawText(textRenderer, textRenderer.trimToWidth(shown, sw - 30), sx + 24, sy + 5, scol, false);
 
@@ -134,7 +134,8 @@ public class ModuleScreen extends Screen {
             Ui.roundRect(ctx, cx, cy, colW, CARD_H, 12, bg);
 
             int nameCol = RenderUtil.mix(0xFF5C5C70, 0xFFFFFFFF, a);
-            ctx.drawText(textRenderer, m.name, cx + 14, cy + 11, nameCol, false);
+            ctx.drawText(textRenderer, textRenderer.trimToWidth(m.displayName(), colW - 58), cx + 12, cy + 7, nameCol, false);
+            ctx.drawText(textRenderer, textRenderer.trimToWidth(m.description(), colW - 22), cx + 12, cy + 23, 0xFF8D8DA5, false);
 
             int tw = 26, th = 14;
             int tx = cx + colW - 14 - tw, ty = cy + (CARD_H - th) / 2;
@@ -145,7 +146,7 @@ public class ModuleScreen extends Screen {
         ctx.disableScissor();
 
         if (list.isEmpty()) {
-            String t = "Nothing found";
+            String t = "Ничего не найдено";
             ctx.drawText(textRenderer, t, px + pw / 2 - textRenderer.getWidth(t) / 2, areaY + 30, 0xFF55556A, false);
         }
 
@@ -160,7 +161,7 @@ public class ModuleScreen extends Screen {
         }
 
         // подвал
-        ctx.drawText(textRenderer, "LMB toggle  •  RMB settings  •  Chat moves HUD widgets", px + 26, py + ph - 17, 0xFF4A4A5E, false);
+        ctx.drawText(textRenderer, "ЛКМ — вкл/выкл • ПКМ — настройки • HUD можно двигать в чате", px + 26, py + ph - 17, 0xFF4A4A5E, false);
         String foot = Brand.NAME + " " + Brand.SUBTITLE + " " + Brand.VERSION;
         ctx.drawText(textRenderer, foot, px + pw - 26 - textRenderer.getWidth(foot), py + ph - 17, 0xFF6C6C86, false);
     }
