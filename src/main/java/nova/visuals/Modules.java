@@ -67,6 +67,7 @@ public final class Modules {
     public static final Module CRITICAL_EFFECTS = add(new Module("CriticalEffects", PVP, true));
     public static final Module KILL_EFFECTS = add(new Module("KillEffects", PVP, true));
     public static final Module TRAILS = add(new Module("Trails", RENDER, false));
+    public static final Module CUSTOM_HAND = add(new Module("CustomHand", PVP, false));
 
     public static final Module NO_HURT_CAM = add(new Module("NoHurtCam", PVP, false) {
         @Override public void onTick(MinecraftClient mc) {
