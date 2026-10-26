@@ -62,6 +62,11 @@ public final class Modules {
     // ---------- PVP (visual helpers) ----------
     public static final Module TRAJECTORIES = add(new Module("Trajectories", PVP, true));
     public static final Module TARGET_INDICATOR = add(new Module("TargetIndicator", PVP, true));
+    public static final Module HIT_PARTICLES = add(new Module("HitParticles", PVP, true));
+    public static final Module DAMAGE_PARTICLES = add(new Module("DamageParticles", PVP, true));
+    public static final Module CRITICAL_EFFECTS = add(new Module("CriticalEffects", PVP, true));
+    public static final Module KILL_EFFECTS = add(new Module("KillEffects", PVP, true));
+    public static final Module TRAILS = add(new Module("Trails", RENDER, false));
 
     public static final Module NO_HURT_CAM = add(new Module("NoHurtCam", PVP, false) {
         @Override public void onTick(MinecraftClient mc) {
@@ -94,7 +99,16 @@ public final class Modules {
         }
     });
 
-    static { ZOOM.keyCode = GLFW.GLFW_KEY_C; }
+    static {
+        ZOOM.keyCode = GLFW.GLFW_KEY_C;
+        // Retire the old generic ESP/utility set, but keep chest/storage highlighting available.
+        List<Module> retired = List.of(LOW_END, PLAYER_ESP, MOB_ESP, PROJECTILE_ESP, ITEM_ESP,
+                TRACERS, GLOW, HITBOXES, FULLBRIGHT, NO_WEATHER);
+        for (Module m : retired) {
+            m.enabled = false;
+            ALL.remove(m);
+        }
+    }
 
     private static Module.Category HUD_CAT() { return Module.Category.HUD; }
     private static Module add(Module m) { ALL.add(m); return m; }
