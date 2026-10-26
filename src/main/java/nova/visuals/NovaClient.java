@@ -76,11 +76,20 @@ public class NovaClient implements ClientModInitializer {
                 State.lastHealth = hp;
                 if (System.currentTimeMillis() - State.lastHit > 3000) State.combo = 0;
 
-                // A lightweight local particle trail; no packets are sent to the server.
-                if (Modules.TRAILS.enabled && mc.world != null && mc.player.age % 3 == 0
-                        && mc.player.getVelocity().horizontalLengthSquared() > 0.006) {
-                    mc.world.addParticle(ParticleTypes.END_ROD, mc.player.getX(), mc.player.getY() + 0.12,
-                            mc.player.getZ(), 0.0, 0.015, 0.0);
+                // Local-only movement trail: emits more frequently while moving faster.
+                // It never sends packets and does not change movement or server state.
+                if (Modules.TRAILS.enabled && mc.world != null) {
+                    double speedSq = mc.player.getVelocity().horizontalLengthSquared();
+                    int cadence = Math.max(1, 6 - VisualEffectsSettings.trailDensity);
+                    if (speedSq > 0.0015 && mc.player.age % cadence == 0) {
+                        var particle = trailParticle();
+                        double spread = Math.min(0.12, Math.sqrt(speedSq) * 0.18);
+                        mc.world.addParticle(particle,
+                                mc.player.getX() + (Math.random() - 0.5) * spread,
+                                mc.player.getY() + 0.08,
+                                mc.player.getZ() + (Math.random() - 0.5) * spread,
+                                0.0, 0.008, 0.0);
+                    }
                 }
             }
 
@@ -90,7 +99,7 @@ public class NovaClient implements ClientModInitializer {
                     && State.lastKillEffectAt != State.lastAttackedAt
                     && (State.lastAttackedEntity.getHealth() <= 0.0f)) {
                 if (Modules.KILL_EFFECTS.enabled) {
-                    spawnBurst(mc, State.lastAttackedEntity, ParticleTypes.TOTEM_OF_UNDYING, 18);
+                    spawnBurst(mc, State.lastAttackedEntity, effectParticle(VisualEffectsSettings.killStyle), VisualEffectsSettings.killCount);
                 }
                 State.lastKillEffectAt = State.lastAttackedAt;
             }
@@ -105,10 +114,10 @@ public class NovaClient implements ClientModInitializer {
                     State.combo++;
                     State.lastAttackedEntity = le;
                     State.lastAttackedAt = State.targetTime;
-                    if (Modules.HIT_PARTICLES.enabled) spawnBurst(net.minecraft.client.MinecraftClient.getInstance(), le, ParticleTypes.CRIT, 9);
-                    if (Modules.DAMAGE_PARTICLES.enabled) spawnBurst(net.minecraft.client.MinecraftClient.getInstance(), le, ParticleTypes.DAMAGE_INDICATOR, 5);
+                    if (Modules.HIT_PARTICLES.enabled) spawnBurst(net.minecraft.client.MinecraftClient.getInstance(), le, effectParticle(VisualEffectsSettings.hitStyle), VisualEffectsSettings.hitCount);
+                    if (Modules.DAMAGE_PARTICLES.enabled) spawnBurst(net.minecraft.client.MinecraftClient.getInstance(), le, ParticleTypes.DAMAGE_INDICATOR, VisualEffectsSettings.damageCount);
                     if (Modules.CRITICAL_EFFECTS.enabled && isLikelyCritical(player)) {
-                        spawnBurst(net.minecraft.client.MinecraftClient.getInstance(), le, ParticleTypes.ENCHANTED_HIT, 10);
+                        spawnBurst(net.minecraft.client.MinecraftClient.getInstance(), le, effectParticle(VisualEffectsSettings.criticalStyle), VisualEffectsSettings.criticalCount);
                     }
                 }
             } catch (Throwable ignored) {}
@@ -158,6 +167,25 @@ public class NovaClient implements ClientModInitializer {
 
         WorldRenderEvents.LAST.register(WorldVisuals::render);
         HudRenderCallback.EVENT.register(Hud::render);
+    }
+
+
+    private static net.minecraft.particle.ParticleEffect effectParticle(int style) {
+        return switch (style) {
+            case 1 -> ParticleTypes.ENCHANTED_HIT;
+            case 2 -> ParticleTypes.END_ROD;
+            case 3 -> ParticleTypes.SOUL_FIRE_FLAME;
+            default -> ParticleTypes.CRIT;
+        };
+    }
+
+    private static net.minecraft.particle.ParticleEffect trailParticle() {
+        return switch (VisualEffectsSettings.trailStyle) {
+            case 1 -> ParticleTypes.SOUL_FIRE_FLAME;
+            case 2 -> ParticleTypes.PORTAL;
+            case 3 -> ParticleTypes.CLOUD;
+            default -> ParticleTypes.END_ROD;
+        };
     }
 
     private static boolean isLikelyCritical(net.minecraft.entity.player.PlayerEntity player) {
