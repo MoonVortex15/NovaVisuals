@@ -5,6 +5,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.render.RenderTickCounter;
+import net.minecraft.entity.effect.StatusEffectInstance;
 
 import java.util.Comparator;
 import java.util.List;
@@ -15,11 +16,6 @@ public final class Hud {
     private static List<Module> activeCache;
     private static long activeBuilt;
 
-    // кэш строк (обновляется 4 раза в секунду, а не каждый кадр)
-    static String wmInfo = "", wmXyz = "";
-    static int wmInfoW, wmXyzW, nameW = -1;
-    private static long wmAt;
-
     public static void invalidate() { activeBuilt = 0; }
 
     public static void render(DrawContext ctx, RenderTickCounter tc) {
@@ -28,6 +24,7 @@ public final class Hud {
         int sw = ctx.getScaledWindowWidth(), sh = ctx.getScaledWindowHeight();
         boolean edit = mc.currentScreen instanceof ChatScreen;
 
+        // 1. Рендеринг кастомных виджетов
         for (Widget wd : Widgets.ALL) {
             if (!wd.module.enabled) continue;
             try {
@@ -36,12 +33,65 @@ public final class Hud {
                 Safe.fail(wd.module, t);
             }
         }
+
+        // 2. Рендеринг ArrayList (список активных модулей) в стиле Pulse
         if (ARRAY_LIST.enabled) {
             try { arrayList(ctx, mc, sw); } catch (Throwable t) { Safe.fail(ARRAY_LIST, t); }
         }
+
+        // 3. Рендеринг элементов HUD как на скриншоте (Potions, HotKeys, Статус)
+        try {
+            renderCustomHudElements(ctx, mc, sw, sh);
+        } catch (Throwable t) {
+            // Защита от краша HUD
+        }
     }
 
-    // ------------------------------------------------------------------ режим перетаскивания (открыт чат)
+    private static void renderCustomHudElements(DrawContext ctx, MinecraftClient mc, int sw, int sh) {
+        // --- Верхняя плашка по центру (Текущий режим / Статус) ---
+        String statusText = "Маяк / Элитный";
+        int statusW = mc.textRenderer.getWidth(statusText) + 40;
+        int statusX = (sw - statusW) / 2;
+        int statusY = 10;
+        Ui.card(ctx, statusX, statusY, statusW, 20, 10);
+        Ui.roundRect(ctx, statusX + 6, statusY + 5, 10, 10, 3, 0xFF42E865);
+        ctx.drawText(mc.textRenderer, "Текущий", statusX + 22, statusY + 6, 0xFF8E8EA6, false);
+        ctx.drawText(mc.textRenderer, statusText, statusX + 70, statusY + 6, 0xFFFFFFFF, true);
+
+        // --- Блок Potions (Слева сверху) ---
+        int potX = 16, potY = 60;
+        int potW = 130, potH = 24;
+        Collection<StatusEffectInstance> effects = mc.player.getStatusEffects();
+        if (!effects.isEmpty()) {
+            potH = 22 + effects.size() * 16;
+            Ui.card(ctx, potX, potY, potW, potH, 10);
+            ctx.drawText(mc.textRenderer, "Potions", potX + 10, potY + 8, 0xFF9B8AFF, true);
+            int eY = potY + 24;
+            for (StatusEffectInstance effect : effects) {
+                String name = effect.getEffectType().value().getName().getString();
+                ctx.drawText(mc.textRenderer, mc.textRenderer.trimToWidth(name, 85), potX + 10, eY, 0xFFFFFFFF, false);
+                ctx.drawText(mc.textRenderer, "∞", potX + potW - 20, eY, 0xFF8E8EA6, false);
+                eY += 16;
+            }
+        }
+
+        // --- Блок Hot Keys (Справа сверху) ---
+        int hkW = 120, hkH = 80;
+        int hkX = sw - hkW - 16, hkY = 60;
+        Ui.card(ctx, hkX, hkY, hkW, hkH, 10);
+        ctx.drawText(mc.textRenderer, "Hot Keys", hkX + 10, hkY + 8, 0xFF9B8AFF, true);
+        
+        String[] keys = {"AutoFish", "Brightness", "HUD", "Music Bar"};
+        String[] binds = {"V", "H", "M", "Q"};
+        int bY = hkY + 26;
+        for (int i = 0; i < keys.length; i++) {
+            ctx.drawText(mc.textRenderer, keys[i], hkX + 10, bY, 0xFFB4B5C7, false);
+            ctx.drawText(mc.textRenderer, binds[i], hkX + hkW - 20, bY, 0xFFFFFFFF, true);
+            bY += 13;
+        }
+    }
+
+    // ------------------------------------------------------------------ Режим редактирования виджетов (Чат)
     public static void editOverlay(DrawContext ctx, MinecraftClient mc, int mx, int my, int sw, int sh) {
         for (Widget wd : Widgets.ALL) {
             if (!wd.module.enabled || wd.w <= 0) continue;
@@ -61,51 +111,7 @@ public final class Hud {
         Ui.text(ctx, mc, hint, sw / 2 - hw / 2 + 8, 10, 0xFFB8B8D0);
     }
 
-    // ------------------------------------------------------------------ gradients (в lite-режиме — один цвет)
-    public static void gradBar(DrawContext ctx, int x1, int y, int x2, int h) {
-        if (Perf.lite()) {
-            ctx.fill(x1, y, x2, y + h, RenderUtil.gradient(0));
-            return;
-        }
-        for (int x = x1; x < x2; x += 6) {
-            ctx.fill(x, y, Math.min(x + 6, x2), y + h, RenderUtil.gradient((x - x1) / 6.0));
-        }
-    }
-
-    public static void gradText(DrawContext ctx, MinecraftClient mc, String text, int x, int y, double off) {
-        if (Perf.lite()) {
-            ctx.drawText(mc.textRenderer, text, x, y, RenderUtil.gradient(off), false);
-            return;
-        }
-        int cx = x;
-        for (int i = 0; i < text.length(); i++) {
-            String ch = String.valueOf(text.charAt(i));
-            ctx.drawText(mc.textRenderer, ch, cx, y, RenderUtil.gradient(off + i * 2), false);
-            cx += mc.textRenderer.getWidth(ch);
-        }
-    }
-
-    // ------------------------------------------------------------------ info cache
-    static void updateInfo(MinecraftClient mc) {
-        long n = System.currentTimeMillis();
-        if (n - wmAt < 250 && nameW >= 0) return;
-        wmAt = n;
-        int ping = 0;
-        if (mc.getNetworkHandler() != null) {
-            PlayerListEntry e = mc.getNetworkHandler().getPlayerListEntry(mc.player.getUuid());
-            if (e != null) ping = e.getLatency();
-        }
-        String server = mc.getCurrentServerEntry() != null ? mc.getCurrentServerEntry().address : "singleplayer";
-        wmInfo = " §7| §f" + mc.getCurrentFps() + " fps §7| §f" + ping + " ms §7| §f" + server;
-        double bps = Math.hypot(mc.player.getX() - mc.player.prevX, mc.player.getZ() - mc.player.prevZ) * 20;
-        wmXyz = "XYZ §f" + (int) mc.player.getX() + " " + (int) mc.player.getY() + " " + (int) mc.player.getZ()
-                + " §7| §f" + (Math.round(bps * 10) / 10.0) + " b/s";
-        nameW = mc.textRenderer.getWidth(Brand.NAME);
-        wmInfoW = mc.textRenderer.getWidth(wmInfo);
-        wmXyzW = mc.textRenderer.getWidth(wmXyz);
-    }
-
-    // ------------------------------------------------------------------ arraylist (по желанию)
+    // ------------------------------------------------------------------ ArrayList (Список модулей справа)
     private static void arrayList(DrawContext ctx, MinecraftClient mc, int sw) {
         long nowMs = System.currentTimeMillis();
         if (activeCache == null || nowMs - activeBuilt > 500) {
@@ -115,13 +121,13 @@ public final class Hud {
                     .toList();
             activeBuilt = nowMs;
         }
-        int ay = 4, idx = 0;
+        int ay = 150, idx = 0;
         for (Module m : activeCache) {
             int tw = mc.textRenderer.getWidth(m.name);
             int col = RenderUtil.gradient(idx * 4);
-            Ui.roundRect(ctx, sw - tw - 12, ay, tw + 10, 12, 4, 0xC00F0F17);
-            ctx.drawText(mc.textRenderer, m.name, sw - tw - 7, ay + 2, col, false);
-            ay += 14;
+            Ui.roundRect(ctx, sw - tw - 16, ay, tw + 12, 16, 6, 0xE60F0F17);
+            ctx.drawText(mc.textRenderer, m.name, sw - tw - 10, ay + 4, col, false);
+            ay += 18;
             idx++;
         }
     }
