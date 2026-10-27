@@ -1,32 +1,28 @@
 package nova.visuals;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.client.gui.GuiGraphics;
 
-/** Перетаскиваемый элемент худа. Позиция хранится в долях экрана (0..1), поэтому не ломается при смене размера окна. */
 public abstract class Widget {
-    public final String id;
-    public final Module module;
-    public float rx, ry;
-    public int w, h;
+    protected int x, y, width, height;
+    protected boolean enabled = true;
 
-    protected Widget(String id, Module module, float rx, float ry) {
-        this.id = id;
-        this.module = module;
-        this.rx = rx;
-        this.ry = ry;
+    public Widget(int x, int y, int width, int height) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
     }
 
-    /** Рисует виджет с левым верхним углом в (x, y) и обязан выставить w и h. Если показывать нечего — w = h = 0. */
-    public abstract void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit);
+    public abstract void render(GuiGraphics graphics, float tickDelta);
 
-    public int px(int sw) { return MathHelper.clamp((int) (rx * sw), 0, Math.max(0, sw - w)); }
-    public int py(int sh) { return MathHelper.clamp((int) (ry * sh), 0, Math.max(0, sh - h)); }
-
-    public boolean hit(double mx, double my, int sw, int sh) {
-        if (w <= 0 || h <= 0) return false;
-        int x = px(sw), y = py(sh);
-        return mx >= x && mx <= x + w && my >= y && my <= y + h;
+    // Универсальный метод для рисования скругленных полупрозрачных плашек «по красоте»
+    public static void drawRoundedRect(GuiGraphics graphics, int x, int y, int width, int height, int radius, int color) {
+        graphics.fill(x + radius, y, x + width - radius, y + height, color);
+        graphics.fill(x, y + radius, x + radius, y + height - radius, color);
+        graphics.fill(x + width - radius, y + radius, x + width, y + height - radius, color);
+        graphics.fill(x + radius, y + radius, x + width - radius, y + height - radius, color);
     }
+
+    public boolean isEnabled() { return enabled; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
 }
