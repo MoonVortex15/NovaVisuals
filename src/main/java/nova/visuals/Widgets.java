@@ -1,137 +1,107 @@
 package nova.visuals;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
-import static nova.visuals.Modules.*;
+public class Widgets {
+    private static final Minecraft mc = Minecraft.getInstance();
 
-public final class Widgets {
-    public static final List<Widget> ALL = new ArrayList<>();
+    public static void renderAll(GuiGraphics graphics, float tickDelta) {
+        if (mc.options.hideGui || mc.player == null) return;
 
-    public static final Widget STATUS_BAR = register(new Widget("status_bar", ARRAY_LIST, 0.5f, 0.02f) {
-        { w = 160; h = 20; }
-        @Override
-        public void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit) {
-            String text = "Маяк / Элитный";
-            w = mc.textRenderer.getWidth(text) + 60;
-            Ui.card(ctx, x, y, w, h, 8);
-            Ui.roundRect(ctx, x + 6, y + 5, 10, 10, 3, 0xFF42E865);
-            ctx.drawText(mc.textRenderer, "Текущий", x + 22, y + 6, Ui.SUB, false);
-            ctx.drawText(mc.textRenderer, text, x + w - mc.textRenderer.getWidth(text) - 8, y + 6, Ui.TEXT, true);
+        // 1. Watermark (название, фпс, пинг, время)
+        renderWatermark(graphics, 10, 10);
+
+        // 2. Target HUD (по центру экрана, если есть цель)
+        Player target = TargetIndicatorSettings.getCurrentTarget();
+        if (target != null) {
+            renderTargetHud(graphics, mc.getWindow().getGuiScaledWidth() / 2 - 65, mc.getWindow().getGuiScaledHeight() / 2 + 15, target);
         }
-    });
 
-    public static final Widget POTIONS = register(new Widget("potions", ARRAY_LIST, 0.02f, 0.1f) {
-        { w = 130; h = 80; }
-        @Override
-        public void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit) {
-            Collection<StatusEffectInstance> effects = mc.player != null ? mc.player.getStatusEffects() : List.of();
-            h = effects.isEmpty() ? 70 : 26 + effects.size() * 16;
-            Ui.card(ctx, x, y, w, h, 10);
-            Ui.roundRect(ctx, x + 8, y + 8, 8, 8, 2, Ui.ACCENT);
-            ctx.drawText(mc.textRenderer, "Potions", x + 20, y + 8, Ui.TEXT, true);
+        // 3. Item Cooldown (кулдаун золотого яблока / предметов)
+        renderItemCooldowns(graphics, 10, 36);
 
-            if (effects.isEmpty() && edit) {
-                ctx.drawText(mc.textRenderer, "Strength II", x + 10, y + 24, Ui.TEXT, false);
-                ctx.drawText(mc.textRenderer, "∞", x + w - 18, y + 24, Ui.SUB, false);
-                ctx.drawText(mc.textRenderer, "Fire Resistance I", x + 10, y + 38, Ui.TEXT, false);
-                ctx.drawText(mc.textRenderer, "1:06", x + w - 28, y + 38, Ui.SUB, false);
-            } else {
-                int eY = y + 24;
-                for (StatusEffectInstance effect : effects) {
-                    String name = effect.getEffectType().value().getName().getString();
-                    int duration = effect.getDuration() / 20;
-                    String timeStr = duration > 999 ? "∞" : String.format("%d:%02d", duration / 60, duration % 60);
-                    ctx.drawText(mc.textRenderer, mc.textRenderer.trimToWidth(name, 75), x + 10, eY, Ui.TEXT, false);
-                    ctx.drawText(mc.textRenderer, timeStr, x + w - mc.textRenderer.getWidth(timeStr) - 8, eY, Ui.SUB, false);
-                    eY += 16;
-                }
-            }
-        }
-    });
-
-    public static final Widget HOT_KEYS = register(new Widget("hot_keys", ARRAY_LIST, 0.85f, 0.1f) {
-        { w = 115; h = 80; }
-        @Override
-        public void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit) {
-            Ui.card(ctx, x, y, w, h, 10);
-            Ui.roundRect(ctx, x + 8, y + 8, 8, 8, 2, Ui.ACCENT);
-            ctx.drawText(mc.textRenderer, "Hot Keys", x + 20, y + 8, Ui.TEXT, true);
-
-            String[] keys = {"AutoFish", "Brightness", "HUD", "Music Bar"};
-            String[] binds = {"V", "H", "M", "Q"};
-            int bY = y + 24;
-            for (int i = 0; i < keys.length; i++) {
-                ctx.drawText(mc.textRenderer, keys[i], x + 10, bY, 0xFFB4B5C7, false);
-                ctx.drawText(mc.textRenderer, binds[i], x + w - mc.textRenderer.getWidth(binds[i]) - 10, bY, Ui.TEXT, true);
-                bY += 13;
-            }
-        }
-    });
-
-    public static final Widget TARGET_HUD = register(new Widget("target_hud", ARRAY_LIST, 0.4f, 0.55f) {
-        { w = 150; h = 50; }
-        @Override
-        public void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit) {
-            PlayerEntity target = mc.player;
-            if (target == null && !edit) return;
-
-            float hp = target != null ? target.getHealth() : 16.0f;
-            float maxHp = target != null ? target.getMaxHealth() : 20.0f;
-            String name = target != null ? target.getName().getString() : "GFk31AK";
-
-            Ui.card(ctx, x, y, w, h, 10);
-            Ui.roundRect(ctx, x + 8, y + 8, 24, 24, 6, 0xFF252637);
-            ctx.drawText(mc.textRenderer, name.substring(0, Math.min(2, name.length())), x + 14, y + 16, Ui.TEXT, true);
-
-            ctx.drawText(mc.textRenderer, name, x + 38, y + 8, Ui.TEXT, true);
-            String hpStr = String.format("HP / %.1f", hp);
-            ctx.drawText(mc.textRenderer, hpStr, x + 38, y + 20, Ui.SUB, false);
-
-            int barX = x + 8, barY = y + h - 12, barW = w - 16, barH = 5;
-            Ui.roundRect(ctx, barX, barY, barW, barH, 2, 0xFF202130);
-            int fillW = (int) (barW * Math.min(1.0f, hp / maxHp));
-            if (fillW > 0) Ui.roundRect(ctx, barX, barY, fillW, barH, 2, 0xFF8A5CFF);
-
-            int armorY = y + h + 4;
-            int armorX = x + (w - 5 * 18) / 2;
-            ItemStack[] items = {
-                    new ItemStack(Items.DIAMOND_SWORD),
-                    new ItemStack(Items.DIAMOND_HELMET),
-                    new ItemStack(Items.DIAMOND_CHESTPLATE),
-                    new ItemStack(Items.DIAMOND_LEGGINGS),
-                    new ItemStack(Items.DIAMOND_BOOTS)
-            };
-            for (int i = 0; i < items.length; i++) {
-                ctx.drawItem(items[i], armorX + i * 18, armorY);
-            }
-        }
-    });
-
-    public static final Widget COOLDOWNS = register(new Widget("cooldowns", ARRAY_LIST, 0.45f, 0.8f) {
-        { w = 140; h = 36; }
-        @Override
-        public void draw(DrawContext ctx, MinecraftClient mc, int x, int y, boolean edit) {
-            Ui.card(ctx, x, y, w, h, 10);
-            Ui.roundRect(ctx, x + 8, y + 6, 8, 8, 4, Ui.ACCENT);
-            ctx.drawText(mc.textRenderer, "Cooldowns", x + 20, y + 6, Ui.TEXT, true);
-            ctx.drawText(mc.textRenderer, "Potion", x + 10, y + 20, 0xFFB4B5C7, false);
-            ctx.drawText(mc.textRenderer, "∞", x + w - 18, y + 20, Ui.SUB, false);
-        }
-    });
-
-    private static Widget register(Widget w) {
-        ALL.add(w);
-        return w;
+        // 4. Keybinds / Active Modules (список забинженных функций)
+        renderKeybinds(graphics, 10, 64);
     }
 
-    private Widgets() {}
+    private static void renderWatermark(GuiGraphics graphics, int x, int y) {
+        String fps = "FPS: " + Minecraft.isDebugFps();
+        String ping = "Ping: " + (mc.getConnection() != null && mc.player != null && mc.getConnection().getPlayerInfo(mc.player.getUUID()) != null 
+                        ? mc.getConnection().getPlayerInfo(mc.player.getUUID()).getLatency() : 0) + "ms";
+        String time = new SimpleDateFormat("HH:mm").format(new Date());
+
+        String text = "NovaVisuals | " + fps + " | " + ping + " | " + time;
+        int width = mc.font.width(text) + 12;
+        int height = 18;
+
+        Widget.drawRoundedRect(graphics, x, y, width, height, 4, 0x90000000);
+        graphics.drawString(mc.font, text, x + 6, y + 5, 0xFFFFFFFF, true);
+    }
+
+    private static void renderTargetHud(GuiGraphics graphics, int x, int y, Player target) {
+        int width = 130;
+        int height = 40;
+
+        Widget.drawRoundedRect(graphics, x, y, width, height, 6, 0xAA101010);
+
+        // Ник и здоровье
+        graphics.drawString(mc.font, target.getName().getString(), x + 36, y + 6, 0xFFFFFFFF, false);
+        graphics.drawString(mc.font, "HP: " + (int) target.getHealth(), x + 36, y + 18, 0xFFFF5555, false);
+
+        // Голова игрока
+        try {
+            graphics.blit(target.getSkin().texture(), x + 6, y + 6, 8, 8, 8, 8, 8, 8, 64, 64);
+        } catch (Exception ignored) {}
+
+        // Предмет в руке
+        ItemStack mainHand = target.getMainHandItem();
+        if (!mainHand.isEmpty()) {
+            graphics.renderItem(mainHand, x + 104, y + 12);
+            graphics.renderItemDecorations(mc.font, mainHand, x + 104, y + 12);
+        }
+    }
+
+    private static void renderItemCooldowns(GuiGraphics graphics, int x, int y) {
+        Item item = Items.GOLDEN_APPLE;
+        float cooldown = mc.player.getCooldowns().getCooldownPercent(item, mc.getFrameTime());
+
+        if (cooldown > 0.0f) {
+            int width = 85;
+            int height = 22;
+
+            Widget.drawRoundedRect(graphics, x, y, width, height, 4, 0x90000000);
+            graphics.renderItem(new ItemStack(item), x + 3, y + 3);
+
+            String text = String.format("G-Apple: %.1fs", cooldown * 4.5f);
+            graphics.drawString(mc.font, text, x + 24, y + 7, 0xFFFF5555, true);
+        }
+    }
+
+    private static void renderKeybinds(GuiGraphics graphics, int startX, int startY) {
+        int yOffset = 0;
+
+        graphics.drawString(mc.font, "Keybinds", startX, startY + yOffset, 0xFF00D7FF, true);
+        yOffset += 12;
+
+        // Выводим все включенные модули и их бинды
+        for (Module module : Modules.getModules()) {
+            if (module.isEnabled()) {
+                String line = module.getName() + " [" + module.getKeyName() + "]";
+                int lineWidth = mc.font.width(line) + 8;
+
+                Widget.drawRoundedRect(graphics, startX, startY + yOffset - 2, lineWidth, 12, 2, 0x60000000);
+                graphics.drawString(mc.font, line, startX + 4, startY + yOffset, 0xFFFFFFFF, true);
+                
+                yOffset += 14;
+            }
+        }
+    }
 }
